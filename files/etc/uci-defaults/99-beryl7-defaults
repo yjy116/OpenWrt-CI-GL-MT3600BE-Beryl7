@@ -1,0 +1,15 @@
+#!/bin/sh
+set -eu
+
+uci -q batch <<'EOF'
+set system.@system[0].hostname='Beryl7'
+set system.@system[0].zonename='Asia/Shanghai'
+set system.@system[0].timezone='CST-8'
+commit system
+EOF
+
+if [ -x /etc/init.d/irqbalance ]; then
+	/etc/init.d/irqbalance enable
+fi
+
+exit 0
