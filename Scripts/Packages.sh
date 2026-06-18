@@ -84,6 +84,12 @@ run_vendor_hook() {
         fi
       done
       ;;
+    luci-mk-compat)
+      while IFS= read -r -d '' luci_makefile; do
+        sed -i 's|include ../../luci.mk|include $(TOPDIR)/feeds/luci/luci.mk|g' "${luci_makefile}"
+        echo "Patched LuCI make include for standalone package: ${luci_makefile}"
+      done < <(find "${repo_dir}" -type f -name Makefile -print0)
+      ;;
     *)
       echo "Unknown vendor hook: ${hook}"
       exit 1
