@@ -1,0 +1,5 @@
+# GL.iNet GL-MT3600BE target selection.
+
+CONFIG_TARGET_mediatek=y
+CONFIG_TARGET_mediatek_filogic=y
+CONFIG_TARGET_mediatek_filogic_DEVICE_glinet_gl-mt3600be=y
