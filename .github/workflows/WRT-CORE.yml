@@ -212,7 +212,9 @@ jobs:
           bash Scripts/Handles.sh prepare-release-metadata
 
       - name: Publish GitHub release
+        id: publish_release
         if: ${{ !inputs.test_only && inputs.publish_release }}
+        continue-on-error: true
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -225,3 +227,9 @@ jobs:
             --notes-file "${{ steps.release_meta.outputs.notes_file }}" \
             --target "${GITHUB_SHA}" \
             --prerelease
+
+      - name: Warn if GitHub release was not published
+        if: ${{ !inputs.test_only && inputs.publish_release && steps.publish_release.outcome == 'failure' }}
+        shell: bash
+        run: |
+          echo "::warning::GitHub release publishing failed. Firmware artifacts were already uploaded; check repository Actions workflow permissions or run with publish_release=false."
