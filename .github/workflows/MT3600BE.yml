@@ -53,4 +53,4 @@ jobs:
       wrt_branch: ${{ inputs.openwrt_branch || 'main' }}
       feeds_profile: ${{ inputs.feeds_profile || 'immortalwrt-compatible' }}
       cleanup_runner: ${{ github.event_name == 'push' || inputs.cleanup_runner }}
-      publish_release: ${{ github.event_name == 'workflow_dispatch' && inputs.publish_release }}
+      publish_release: ${{ github.event_name == 'push' || inputs.publish_release }}
