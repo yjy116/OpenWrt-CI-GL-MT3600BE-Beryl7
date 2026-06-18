@@ -1,0 +1,87 @@
+name: Clear-Cache
+
+run-name: >-
+  Clear cache | scope=${{ inputs.cache_scope }} | actor=${{ github.actor }}
+
+on:
+  workflow_dispatch:
+    inputs:
+      cache_scope:
+        description: Cache scope to clear
+        required: true
+        default: all
+        type: choice
+        options:
+          - all
+          - build
+          - ccache
+          - download
+
+permissions:
+  actions: write
+  contents: read
+
+jobs:
+  clear-cache:
+    name: Clear GitHub Actions cache
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete matching caches
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          CACHE_SCOPE: ${{ inputs.cache_scope }}
+        run: |
+          set -euo pipefail
+
+          case "${CACHE_SCOPE}" in
+            all|build|ccache|download)
+              ;;
+            *)
+              echo "Unsupported cache_scope: ${CACHE_SCOPE}" >&2
+              exit 2
+              ;;
+          esac
+
+          matches_scope() {
+            local key="$1"
+            case "${CACHE_SCOPE}" in
+              all)
+                return 0
+                ;;
+              build)
+                [[ "${key}" == *"ccache"* || "${key}" == *"-dl-"* ]]
+                ;;
+              ccache)
+                [[ "${key}" == *"ccache"* ]]
+                ;;
+              download)
+                [[ "${key}" == *"-dl-"* ]]
+                ;;
+            esac
+          }
+
+          mapfile -t cache_rows < <(
+            gh api --paginate \
+              "/repos/${GITHUB_REPOSITORY}/actions/caches?per_page=100" \
+              --jq '.actions_caches[] | [.id, .key, .size_in_bytes, .ref, .last_accessed_at] | @tsv'
+          )
+
+          matched_rows=()
+          for row in "${cache_rows[@]}"; do
+            IFS=$'\t' read -r cache_id cache_key cache_size cache_ref cache_last_accessed <<< "${row}"
+            if matches_scope "${cache_key}"; then
+              matched_rows+=("${row}")
+            fi
+          done
+
+          if [[ "${#matched_rows[@]}" -eq 0 ]]; then
+            echo "No caches matched ${CACHE_SCOPE}."
+            exit 0
+          fi
+
+          for row in "${matched_rows[@]}"; do
+            IFS=$'\t' read -r cache_id cache_key cache_size cache_ref cache_last_accessed <<< "${row}"
+            echo "Deleting cache id=${cache_id} key=${cache_key}"
+            gh api --method DELETE "/repos/${GITHUB_REPOSITORY}/actions/caches/${cache_id}"
+          done
