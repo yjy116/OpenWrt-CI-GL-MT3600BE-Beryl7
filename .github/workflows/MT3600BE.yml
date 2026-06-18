@@ -26,16 +26,6 @@ on:
         required: true
         default: true
         type: boolean
-  push:
-    branches:
-      - main
-      - master
-    paths:
-      - ".github/workflows/**"
-      - "Config/**"
-      - "Scripts/**"
-      - "files/**"
-      - "README.md"
 
 permissions:
   contents: write
@@ -51,7 +41,7 @@ jobs:
       wrt_device_name: glinet_gl-mt3600be
       wrt_device_dts: mt7987a-glinet-gl-mt3600be
       wrt_theme: aurora
-      wrt_branch: ${{ github.event_name == 'workflow_dispatch' && inputs.openwrt_branch || 'main' }}
-      feeds_profile: ${{ github.event_name == 'workflow_dispatch' && inputs.feeds_profile || 'immortalwrt-compatible' }}
-      cleanup_runner: ${{ github.event_name != 'workflow_dispatch' || inputs.cleanup_runner }}
-      publish_release: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_release }}
+      wrt_branch: ${{ inputs.openwrt_branch }}
+      feeds_profile: ${{ inputs.feeds_profile }}
+      cleanup_runner: ${{ inputs.cleanup_runner }}
+      publish_release: ${{ inputs.publish_release }}
