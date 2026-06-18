@@ -1,0 +1,67 @@
+name: Auto-Build
+
+run-name: >-
+  Auto build | branch=main | feeds=immortalwrt-compatible | actor=${{ github.actor }}
+
+on:
+  schedule:
+    - cron: "10 16 10,20,28-31 * *"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: write
+
+jobs:
+  schedule_guard:
+    name: Check Beijing build date
+    runs-on: ubuntu-latest
+    outputs:
+      should_build: ${{ steps.guard.outputs.should_build }}
+      beijing_date: ${{ steps.guard.outputs.beijing_date }}
+    steps:
+      - name: Decide whether to build
+        id: guard
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            echo "should_build=true" >> "${GITHUB_OUTPUT}"
+            echo "beijing_date=$(TZ=Asia/Shanghai date +%F)" >> "${GITHUB_OUTPUT}"
+            exit 0
+          fi
+
+          beijing_date="$(TZ=Asia/Shanghai date +%F)"
+          beijing_day="$(TZ=Asia/Shanghai date +%d)"
+
+          echo "beijing_date=${beijing_date}" >> "${GITHUB_OUTPUT}"
+          case "${beijing_day}" in
+            01|11|21|31)
+              echo "should_build=true" >> "${GITHUB_OUTPUT}"
+              ;;
+            *)
+              echo "should_build=false" >> "${GITHUB_OUTPUT}"
+              ;;
+          esac
+
+  build:
+    name: Scheduled build
+    needs: schedule_guard
+    if: ${{ needs.schedule_guard.outputs.should_build == 'true' && (github.event_name == 'workflow_dispatch' || vars.AUTO_BUILD_ENABLED != 'false') }}
+    permissions:
+      contents: write
+    uses: ./.github/workflows/WRT-CORE.yml
+    with:
+      wrt_config: MT3600BE
+      wrt_name: GL-MT3600BE
+      wrt_device_name: glinet_gl-mt3600be
+      wrt_device_dts: mt7987a-glinet-gl-mt3600be
+      wrt_theme: aurora
+      wrt_branch: main
+      feeds_profile: immortalwrt-compatible
+      cleanup_runner: true
+      publish_release: true
