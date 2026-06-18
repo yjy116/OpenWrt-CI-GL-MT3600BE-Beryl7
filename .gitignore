@@ -1,0 +1,12 @@
+.tmp/
+artifacts/
+openwrt-*/
+openwrt-vendor/
+dl/
+*.bin
+*.itb
+*.img
+*.manifest
+*.buildinfo
+*.config
+SHA256SUMS
