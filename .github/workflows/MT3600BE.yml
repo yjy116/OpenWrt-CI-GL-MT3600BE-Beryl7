@@ -1,0 +1,57 @@
+name: MT3600BE
+
+on:
+  workflow_dispatch:
+    inputs:
+      openwrt_branch:
+        description: OpenWrt source branch to build
+        required: true
+        default: main
+        type: string
+      feeds_profile:
+        description: Feed profile to use
+        required: true
+        default: immortalwrt-compatible
+        type: choice
+        options:
+          - immortalwrt-compatible
+          - openwrt-official
+      cleanup_runner:
+        description: Free runner disk space before build
+        required: true
+        default: true
+        type: boolean
+      publish_release:
+        description: Publish a GitHub prerelease after a successful build
+        required: true
+        default: true
+        type: boolean
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - ".github/workflows/**"
+      - "Config/**"
+      - "Scripts/**"
+      - "files/**"
+      - "README.md"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    permissions:
+      contents: write
+    uses: ./.github/workflows/WRT-CORE.yml
+    with:
+      wrt_config: MT3600BE
+      wrt_name: GL-MT3600BE
+      wrt_device_name: glinet_gl-mt3600be
+      wrt_device_dts: mt7987a-glinet-gl-mt3600be
+      wrt_theme: aurora
+      wrt_branch: ${{ github.event_name == 'workflow_dispatch' && inputs.openwrt_branch || 'main' }}
+      feeds_profile: ${{ github.event_name == 'workflow_dispatch' && inputs.feeds_profile || 'immortalwrt-compatible' }}
+      cleanup_runner: ${{ github.event_name != 'workflow_dispatch' || inputs.cleanup_runner }}
+      publish_release: ${{ github.event_name != 'workflow_dispatch' || inputs.publish_release }}
