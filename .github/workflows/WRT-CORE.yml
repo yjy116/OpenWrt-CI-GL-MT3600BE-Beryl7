@@ -1,0 +1,227 @@
+name: WRT-CORE
+
+on:
+  workflow_call:
+    inputs:
+      wrt_config:
+        required: true
+        type: string
+      wrt_name:
+        required: true
+        type: string
+      wrt_device_name:
+        required: true
+        type: string
+      wrt_device_dts:
+        required: true
+        type: string
+      wrt_theme:
+        required: false
+        type: string
+        default: aurora
+      wrt_repo:
+        required: false
+        type: string
+        default: https://github.com/openwrt/openwrt.git
+      wrt_branch:
+        required: false
+        type: string
+        default: main
+      feeds_profile:
+        required: false
+        type: string
+        default: immortalwrt-compatible
+      cleanup_runner:
+        required: false
+        type: boolean
+        default: true
+      publish_release:
+        required: false
+        type: boolean
+        default: true
+      test_only:
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ inputs.wrt_config }}-${{ inputs.wrt_branch }}-${{ inputs.feeds_profile }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build / ${{ inputs.wrt_name }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 360
+    env:
+      WRT_CONFIG: ${{ inputs.wrt_config }}
+      WRT_NAME: ${{ inputs.wrt_name }}
+      WRT_DEVICE_LABEL: ${{ inputs.wrt_name }}
+      DEVICE_NAME: ${{ inputs.wrt_device_name }}
+      DEVICE_DTS: ${{ inputs.wrt_device_dts }}
+      WRT_THEME: ${{ inputs.wrt_theme }}
+      REPO_URL: ${{ inputs.wrt_repo }}
+      REPO_BRANCH: ${{ inputs.wrt_branch }}
+      FEEDS_PROFILE: ${{ inputs.feeds_profile }}
+      RELEASE_TAG_PREFIX: mt3600be-openwrt
+
+    steps:
+      - name: Checkout helper repository
+        uses: actions/checkout@v4
+
+      - name: Show runner information
+        shell: bash
+        run: |
+          set -euo pipefail
+          uname -a
+          df -h /
+          df -h /mnt || true
+          nproc
+
+      - name: Free disk space
+        if: ${{ inputs.cleanup_runner }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          sudo rm -rf \
+            /usr/share/dotnet \
+            /opt/ghc \
+            /usr/local/lib/android \
+            /opt/microsoft \
+            /usr/share/swift \
+            /usr/local/.ghcup \
+            /usr/share/miniconda \
+            /opt/hostedtoolcache/CodeQL \
+            /opt/google/chrome \
+            /opt/microsoft/msedge \
+            /usr/local/share/chromium
+          sudo docker system prune -af >/dev/null 2>&1 || true
+          sudo apt-get clean
+          df -h /
+          df -h /mnt || true
+
+      - name: Select build workspace
+        id: workspace
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          work_root="/home/runner/work/_fw"
+          if [[ -d /mnt ]] && [[ "$(df --output=avail -k /mnt | tail -1 | tr -dc '0-9')" -gt 10485760 ]]; then
+            work_root="/mnt/_fw"
+          fi
+
+          sudo mkdir -p "${work_root}"
+          sudo chown -R "${USER}:${USER}" "${work_root}"
+
+          cache_root="${work_root}/cache"
+          dl_dir="${cache_root}/dl"
+          ccache_dir="${cache_root}/ccache"
+          build_root="${work_root}/openwrt-${WRT_CONFIG}"
+          vendor_root="${work_root}/openwrt-vendor"
+
+          mkdir -p "${dl_dir}" "${ccache_dir}"
+
+          {
+            echo "WORK_ROOT=${work_root}"
+            echo "CACHE_ROOT=${cache_root}"
+            echo "DL_DIR=${dl_dir}"
+            echo "CCACHE_DIR=${ccache_dir}"
+            echo "BUILD_ROOT=${build_root}"
+            echo "VENDOR_ROOT=${vendor_root}"
+          } >> "${GITHUB_ENV}"
+
+          {
+            echo "dl_dir=${dl_dir}"
+            echo "ccache_dir=${ccache_dir}"
+          } >> "${GITHUB_OUTPUT}"
+
+      - name: Restore download cache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.workspace.outputs.dl_dir }}
+          key: ${{ runner.os }}-dl-${{ inputs.wrt_branch }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-dl-${{ inputs.wrt_branch }}-
+            ${{ runner.os }}-dl-
+
+      - name: Restore ccache
+        uses: actions/cache/restore@v4
+        with:
+          path: ${{ steps.workspace.outputs.ccache_dir }}
+          key: ${{ runner.os }}-ccache-${{ inputs.wrt_branch }}-${{ inputs.wrt_config }}-${{ github.sha }}
+          restore-keys: |
+            ${{ runner.os }}-ccache-${{ inputs.wrt_branch }}-${{ inputs.wrt_config }}-
+            ${{ runner.os }}-ccache-${{ inputs.wrt_branch }}-
+
+      - name: Install build dependencies
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash Scripts/bootstrap-ubuntu.sh
+
+      - name: Build firmware or validate config
+        shell: bash
+        env:
+          TEST_ONLY: ${{ inputs.test_only && '1' || '0' }}
+          BUILD_VERBOSE: 0
+        run: |
+          set -euo pipefail
+          export JOBS="$(nproc)"
+          bash Scripts/build-openwrt.sh 2>&1 | tee "${RUNNER_TEMP}/build.log"
+
+      - name: Save download cache
+        if: ${{ always() }}
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.workspace.outputs.dl_dir }}
+          key: ${{ runner.os }}-dl-${{ inputs.wrt_branch }}-${{ github.sha }}
+
+      - name: Save ccache
+        if: ${{ always() }}
+        uses: actions/cache/save@v4
+        with:
+          path: ${{ steps.workspace.outputs.ccache_dir }}
+          key: ${{ runner.os }}-ccache-${{ inputs.wrt_branch }}-${{ inputs.wrt_config }}-${{ github.sha }}
+
+      - name: Collect artifacts
+        if: ${{ always() }}
+        shell: bash
+        env:
+          TEST_ONLY: ${{ inputs.test_only && '1' || '0' }}
+        run: |
+          set -euo pipefail
+          bash Scripts/Handles.sh collect-artifacts
+
+      - name: Upload artifacts
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.wrt_config }}-${{ github.run_number }}
+          path: ${{ runner.temp }}/mt3600be-artifacts
+          if-no-files-found: error
+          retention-days: 14
+          compression-level: 0
+
+      - name: Prepare release metadata
+        id: release_meta
+        if: ${{ !inputs.test_only && inputs.publish_release }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash Scripts/Handles.sh prepare-release-metadata
+
+      - name: Publish GitHub release
+        if: ${{ !inputs.test_only && inputs.publish_release }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release create "${{ steps.release_meta.outputs.tag }}" \
+            "${RUNNER_TEMP}/mt3600be-artifacts/"* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "${{ steps.release_meta.outputs.title }}" \
+            --notes-file "${{ steps.release_meta.outputs.notes_file }}" \
+            --target "${GITHUB_SHA}" \
+            --prerelease
