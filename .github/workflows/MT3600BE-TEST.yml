@@ -1,0 +1,41 @@
+name: MT3600BE-TEST
+
+on:
+  workflow_dispatch:
+    inputs:
+      openwrt_branch:
+        description: OpenWrt source branch to validate
+        required: true
+        default: main
+        type: string
+      feeds_profile:
+        description: Feed profile to use
+        required: true
+        default: immortalwrt-compatible
+        type: choice
+        options:
+          - immortalwrt-compatible
+          - openwrt-official
+      cleanup_runner:
+        description: Free runner disk space before validation
+        required: true
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    uses: ./.github/workflows/WRT-CORE.yml
+    with:
+      wrt_config: MT3600BE
+      wrt_name: GL-MT3600BE TEST
+      wrt_device_name: glinet_gl-mt3600be
+      wrt_device_dts: mt7987a-glinet-gl-mt3600be
+      wrt_theme: aurora
+      wrt_branch: ${{ inputs.openwrt_branch }}
+      feeds_profile: ${{ inputs.feeds_profile }}
+      cleanup_runner: ${{ inputs.cleanup_runner }}
+      publish_release: false
+      test_only: true
