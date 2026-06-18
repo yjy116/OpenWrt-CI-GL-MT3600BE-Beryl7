@@ -46,7 +46,7 @@ on:
 
 concurrency:
   group: ${{ inputs.wrt_config }}-${{ inputs.wrt_branch }}-${{ inputs.feeds_profile }}-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   build:
