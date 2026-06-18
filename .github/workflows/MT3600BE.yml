@@ -26,6 +26,15 @@ on:
         required: true
         default: true
         type: boolean
+  push:
+    branches:
+      - main
+    paths:
+      - .github/workflows/MT3600BE.yml
+      - .github/workflows/WRT-CORE.yml
+      - Config/**
+      - Scripts/**
+      - files/**
 
 permissions:
   contents: write
@@ -41,7 +50,7 @@ jobs:
       wrt_device_name: glinet_gl-mt3600be
       wrt_device_dts: mt7987a-glinet-gl-mt3600be
       wrt_theme: aurora
-      wrt_branch: ${{ inputs.openwrt_branch }}
-      feeds_profile: ${{ inputs.feeds_profile }}
-      cleanup_runner: ${{ inputs.cleanup_runner }}
-      publish_release: ${{ inputs.publish_release }}
+      wrt_branch: ${{ inputs.openwrt_branch || 'main' }}
+      feeds_profile: ${{ inputs.feeds_profile || 'immortalwrt-compatible' }}
+      cleanup_runner: ${{ inputs.cleanup_runner != false }}
+      publish_release: ${{ inputs.publish_release == true }}
