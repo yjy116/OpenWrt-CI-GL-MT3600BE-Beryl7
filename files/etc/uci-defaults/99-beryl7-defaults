@@ -59,7 +59,8 @@ setup_default_wifi() {
 	fi
 
 	uci -q commit wireless
-	command -v wifi >/dev/null 2>&1 && (wifi reload || wifi || true)
+	# 中文：首次启动脚本运行较早，只写入 UCI 配置；系统后续启动 network/wifi 时会自动应用。
+	# 中文：避免在这里主动 reload 无线，防止驱动初始化阶段卡住首次启动流程。
 }
 
 setup_default_wifi
