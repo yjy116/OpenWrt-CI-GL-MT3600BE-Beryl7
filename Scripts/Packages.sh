@@ -191,6 +191,7 @@ prepare_custom_packages() {
 
     repo_dir="${VENDOR_ROOT}/${package_name}"
     sync_git_repo "${repo_url}" "${repo_branch}" "${repo_dir}"
+    run_vendor_hook "${repo_dir}" "${hook}"
     copy_vendor_specs "${repo_dir}" "${copy_specs}"
     run_vendor_hook "${repo_dir}" "${hook}"
   done < "${GENERAL_CONFIG_FILE}"
