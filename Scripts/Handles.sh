@@ -33,6 +33,10 @@ collect_artifacts() {
 
   if [[ -f "${BUILD_ROOT}/tmp/dropped-packages.txt" ]]; then
     cp -v "${BUILD_ROOT}/tmp/dropped-packages.txt" "${ARTIFACT_DIR}/dropped-packages.txt"
+    if [[ ! -s "${ARTIFACT_DIR}/dropped-packages.txt" ]]; then
+      # 中文：GitHub Release 不能稳定上传 0 字节资产；用说明行表示没有被丢弃的请求包。
+      printf '%s\n' '# 中文：没有被 defconfig 丢弃的请求包。' > "${ARTIFACT_DIR}/dropped-packages.txt"
+    fi
   fi
 
   if [[ "${TEST_ONLY}" != "1" ]]; then
