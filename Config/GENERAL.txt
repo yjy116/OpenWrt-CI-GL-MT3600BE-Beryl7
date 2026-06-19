@@ -10,7 +10,7 @@
 CONFIG_DEVEL=y
 CONFIG_CCACHE=y
 CONFIG_FEED_video=n
-CONFIG_TARGET_ROOTFS_INITRAMFS=n
+CONFIG_TARGET_ROOTFS_INITRAMFS=y
 
 # 第三方插件源码。
 # 默认 feed 配置沿用 ImmortalWrt 的 luci/packages feeds，尽量保留旧 ImmortalWrt 项目的插件集合。

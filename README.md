@@ -80,7 +80,17 @@ other device secrets to this public repository.
 For first tests, keep a copy of the official GL.iNet firmware and confirm the
 router recovery process before flashing a custom image.
 
-From OpenWrt, a clean sysupgrade looks like this:
+中文：不要在 GL.iNet U-Boot 恢复页面里刷
+`openwrt-mediatek-filogic-glinet_gl-mt3600be-squashfs-sysupgrade.bin`。这个
+文件是给 GL.iNet Web UI、OpenWrt LuCI 或 OpenWrt shell 里的 `sysupgrade`
+流程使用的；在 U-Boot 恢复模式里刷入可能无法正常自动启动。
+
+中文：如果路由器已经进不了系统，优先用 GL.iNet 官方固件通过 U-Boot 恢复
+回可启动状态，再从 GL.iNet Web UI 或 OpenWrt 里刷本仓库生成的 sysupgrade
+镜像。
+
+From GL.iNet Web UI, OpenWrt LuCI, or OpenWrt shell, a clean sysupgrade looks
+like this:
 
 ```sh
 sysupgrade -n openwrt-mediatek-filogic-glinet_gl-mt3600be-squashfs-sysupgrade.bin
@@ -88,3 +98,7 @@ sysupgrade -n openwrt-mediatek-filogic-glinet_gl-mt3600be-squashfs-sysupgrade.bi
 
 Remove `-n` only when you intentionally want to preserve compatible settings
 from the current firmware.
+
+This project also builds `initramfs-kernel.bin` for recovery/testing parity with
+official OpenWrt snapshots. Treat it as a recovery or temporary-boot helper, not
+as the normal permanent upgrade path.

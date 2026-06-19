@@ -111,7 +111,11 @@ prepare_release_metadata() {
   notes_file="${RUNNER_TEMP}/release-notes.md"
 
   {
-    echo "# ${WRT_DEVICE_LABEL} automated OpenWrt build"
+    echo "# ${WRT_DEVICE_LABEL} OpenWrt 自动构建"
+    echo
+    echo "中文：正常升级请在 GL.iNet Web UI、OpenWrt LuCI 或 OpenWrt shell 中使用 sysupgrade 镜像。"
+    echo "中文：不要在 GL.iNet U-Boot 恢复页面里刷 squashfs-sysupgrade.bin；如需救砖，先刷回官方固件，再进入系统升级。"
+    echo "中文：initramfs-kernel.bin 仅作为恢复/临时启动辅助，不作为常规永久升级路径。"
     echo
     echo "- Source: \`openwrt/openwrt\`"
     echo "- Branch: \`${REPO_BRANCH}\`"
