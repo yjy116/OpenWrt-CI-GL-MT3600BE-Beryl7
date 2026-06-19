@@ -91,6 +91,8 @@ CONFIG_PACKAGE_openssh-sftp-server=y
 CONFIG_PACKAGE_openssl-util=y
 
 # Network, proxy, VPN, and management.
+# OpenWrt main does not carry ImmortalWrt's fullcone patch chain; use nft-offload
+# for acceleration, plus UPnP/natmap for game and P2P port mapping needs.
 CONFIG_PACKAGE_adguardhome=y
 CONFIG_PACKAGE_daed=y
 CONFIG_PACKAGE_daed-geoip=y
@@ -113,12 +115,14 @@ CONFIG_PACKAGE_luci-app-wolplus=y
 CONFIG_PACKAGE_luci-app-ddns=y
 CONFIG_PACKAGE_luci-app-zerotier=y
 CONFIG_PACKAGE_luci-app-upnp=y
+CONFIG_PACKAGE_luci-app-natmap=y
 CONFIG_PACKAGE_luci-proto-relay=y
 CONFIG_PACKAGE_luci-proto-wireguard=y
 CONFIG_PACKAGE_luci-app-fancontrol=y
 CONFIG_PACKAGE_luci-app-vlmcsd=y
 CONFIG_PACKAGE_proto-bonding=y
 CONFIG_PACKAGE_miniupnpd-nftables=y
+CONFIG_PACKAGE_natmap=y
 CONFIG_PACKAGE_kmod-bonding=y
 CONFIG_PACKAGE_kmod-dsa=y
 CONFIG_PACKAGE_kmod-dummy=y
