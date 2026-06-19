@@ -16,14 +16,14 @@ WRT_THEME="${WRT_THEME:-aurora}"
 FEEDS_PROFILE="${FEEDS_PROFILE:-immortalwrt-compatible}"
 LANGUAGE_CORE_PACKAGES=(
   "CONFIG_PACKAGE_luci=y"
+  "CONFIG_LUCI_LANG_zh_Hans=y"
   "CONFIG_PACKAGE_luci-i18n-base-zh-cn=y"
   "CONFIG_PACKAGE_luci-i18n-firewall-zh-cn=y"
 )
-COMPAT_LANGUAGE_PACKAGES=(
-  "CONFIG_PACKAGE_default-settings-chn=y"
-)
+COMPAT_LANGUAGE_PACKAGES=()
 REQUIRED_CONFIG_SYMBOLS=(
   "CONFIG_PACKAGE_luci=y"
+  "CONFIG_LUCI_LANG_zh_Hans=y"
   "CONFIG_PACKAGE_luci-i18n-base-zh-cn=y"
 )
 DAED_REQUIRED_CONFIG_SYMBOLS=(
@@ -201,10 +201,6 @@ validate_required_config_symbols() {
   local missing=()
   local symbol
   local required_symbols=("${REQUIRED_CONFIG_SYMBOLS[@]}")
-
-  if [[ "${FEEDS_PROFILE}" == "immortalwrt-compatible" ]]; then
-    required_symbols+=("CONFIG_PACKAGE_default-settings-chn=y")
-  fi
 
   if [[ -n "${WRT_THEME}" && "${WRT_THEME}" != "bootstrap" ]]; then
     required_symbols+=(
