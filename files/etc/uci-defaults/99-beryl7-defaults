@@ -169,7 +169,7 @@ patch_luci_cpuusage_backend() {
 	grep -q '/sbin/cpuusage' "${luci_ucode}" && return 0
 
 	tmp_file="${luci_ucode}.tmp"
-	# 中文：OpenWrt 主线默认只返回 CPU 百分比；这里复用 /sbin/cpuusage 输出 CPU 与 PPE/NPU 流表统计。
+	# 中文：OpenWrt 主线默认只返回 CPU 百分比；这里复用 /sbin/cpuusage 输出 CPU 与 MTK PPE 硬件流表统计。
 	awk '
 		/const fd = popen\('\''top -n1 \| awk/ {
 			print "\t\t\tconst fd = popen('\''/sbin/cpuusage'\'');"

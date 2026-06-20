@@ -1,7 +1,7 @@
 #!/bin/sh
 
-# 中文：为 LuCI 系统概览提供 CPU 使用率和 MediaTek PPE/NPU 硬件流表统计。
-# 中文：无 WAN 流量或 PPE 表为空时，NPU 统计会自然显示为 0。
+# 中文：为 LuCI 系统概览提供 CPU 使用率和 MediaTek PPE 硬件流表统计。
+# 中文：Linux flowtable 以 conntrack 的 [HW_OFFLOAD] 标记表示硬件加速命中；MTK 驱动中对应硬件称为 PPE。
 
 get_cpu_usage() {
 	top -bn1 2>/dev/null | awk '
@@ -23,10 +23,32 @@ get_cpu_usage() {
 	'
 }
 
-count_ppe_entries() {
+count_hw_offload_conntrack() {
+	[ -r /proc/net/nf_conntrack ] || return 1
+
+	awk '
+		BEGIN { tcp = 0; udp = 0; other = 0; total = 0 }
+		/\[HW_OFFLOAD\]/ {
+			total++
+			if ($3 == "tcp")
+				tcp++
+			else if ($3 == "udp")
+				udp++
+			else
+				other++
+		}
+		END {
+			printf "%d %d %d %d", tcp, udp, other, total
+			exit total > 0 ? 0 : 1
+		}
+	' /proc/net/nf_conntrack
+}
+
+count_ppe_file() {
 	awk '
 		BEGIN { tcp = 0; udp = 0; other = 0; total = 0 }
 		/^[[:space:]]*$/ { next }
+		$2 == "INV" || $2 == "UNB" || $2 == "FIN" { next }
 		{
 			line = tolower($0)
 			total++
@@ -39,16 +61,36 @@ count_ppe_entries() {
 				other++
 		}
 		END { printf "%d %d %d %d", tcp, udp, other, total }
-	' /sys/kernel/debug/ppe*/bind 2>/dev/null
+	' "$@" 2>/dev/null
+}
+
+count_ppe_entries() {
+	local counts total
+
+	counts="$(count_ppe_file /sys/kernel/debug/ppe*/bind)"
+	set -- ${counts}
+	total="${4:-0}"
+	if [ "${total}" != "0" ]; then
+		printf '%s' "${counts}"
+		return 0
+	fi
+
+	count_ppe_file /sys/kernel/debug/ppe*/entries
 }
 
 cpu="$(get_cpu_usage)"
 [ -n "${cpu}" ] || cpu="0"
 
-set -- $(count_ppe_entries)
+if counts="$(count_hw_offload_conntrack)"; then
+	:
+else
+	counts="$(count_ppe_entries)"
+fi
+
+set -- ${counts}
 tcp="${1:-0}"
 udp="${2:-0}"
 other="${3:-0}"
 total="${4:-0}"
 
-printf 'CPU: %s%% NPU: tcp %s udp %s other %s total %s' "${cpu}" "${tcp}" "${udp}" "${other}" "${total}"
+printf 'CPU: %s%% PPE: tcp %s udp %s other %s total %s' "${cpu}" "${tcp}" "${udp}" "${other}" "${total}"
