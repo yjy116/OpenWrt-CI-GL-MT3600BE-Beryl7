@@ -107,9 +107,23 @@ sync_rootfs_overlay() {
   cp -a "${PROJECT_ROOT}/files/." "${BUILD_ROOT}/files/"
 }
 
+apply_openwrt_patches() {
+  local patch_dir="${PROJECT_ROOT}/patches/openwrt"
+  local patch_file
+
+  [[ -d "${patch_dir}" ]] || return
+
+  while IFS= read -r -d '' patch_file; do
+    echo "Applying OpenWrt source patch: ${patch_file#${PROJECT_ROOT}/}"
+    git apply --check "${patch_file}"
+    git apply "${patch_file}"
+  done < <(find "${patch_dir}" -maxdepth 1 -type f -name '*.patch' -print0 | sort -z)
+}
+
 prepare_build_workspace() {
   prepare_build_tree
   cd "${BUILD_ROOT}"
+  apply_openwrt_patches
   apply_feeds_profile
   sync_rootfs_overlay
   prepare_shared_cache_dirs

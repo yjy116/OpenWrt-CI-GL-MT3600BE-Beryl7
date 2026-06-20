@@ -1,0 +1,54 @@
+#!/bin/sh
+
+# 中文：为 LuCI 系统概览提供 CPU 使用率和 MediaTek PPE/NPU 硬件流表统计。
+# 中文：无 WAN 流量或 PPE 表为空时，NPU 统计会自然显示为 0。
+
+get_cpu_usage() {
+	top -bn1 2>/dev/null | awk '
+		/^CPU/ {
+			for (i = 2; i <= NF; i++) {
+				if ($i == "idle" && i > 1) {
+					idle = $(i - 1)
+					gsub(/%/, "", idle)
+					printf "%d", 100 - idle
+					exit
+				}
+			}
+			if (NF >= 8) {
+				idle = $8
+				gsub(/%/, "", idle)
+				printf "%d", 100 - idle
+			}
+		}
+	'
+}
+
+count_ppe_entries() {
+	awk '
+		BEGIN { tcp = 0; udp = 0; other = 0; total = 0 }
+		/^[[:space:]]*$/ { next }
+		{
+			line = tolower($0)
+			total++
+
+			if (line ~ /(^|[^a-z])tcp([^a-z]|$)/ || line ~ /proto[=: ]*6([^0-9]|$)/)
+				tcp++
+			else if (line ~ /(^|[^a-z])udp([^a-z]|$)/ || line ~ /proto[=: ]*17([^0-9]|$)/)
+				udp++
+			else
+				other++
+		}
+		END { printf "%d %d %d %d", tcp, udp, other, total }
+	' /sys/kernel/debug/ppe*/bind 2>/dev/null
+}
+
+cpu="$(get_cpu_usage)"
+[ -n "${cpu}" ] || cpu="0"
+
+set -- $(count_ppe_entries)
+tcp="${1:-0}"
+udp="${2:-0}"
+other="${3:-0}"
+total="${4:-0}"
+
+printf 'CPU: %s%% NPU: tcp %s udp %s other %s total %s' "${cpu}" "${tcp}" "${udp}" "${other}" "${total}"

@@ -1,0 +1,106 @@
+#!/bin/sh
+
+# 中文：为 LuCI 系统概览提供稳定的 CPU 架构、核心数和频率显示。
+# 中文：OpenWrt 主线脚本只读 "model name"，ARM64 上该字段常为空，会显示为 "?"。
+
+. /etc/openwrt_release
+
+CPUINFO_PATH="/proc/cpuinfo"
+CPUFREQ_PATH="/sys/devices/system/cpu/cpufreq"
+THERMAL_PATH="/sys/class/thermal"
+
+cpu_arch="$(awk -F ': ' '/model name/ {print $2; exit}' "${CPUINFO_PATH}")"
+
+if [ -z "${cpu_arch}" ]; then
+	cpu_part="$(awk -F ': ' '/CPU part/ {print tolower($2); exit}' "${CPUINFO_PATH}")"
+
+	case "${cpu_part}" in
+	0xd03) cpu_arch="ARM Cortex-A53" ;;
+	0xd04) cpu_arch="ARM Cortex-A35" ;;
+	0xd05) cpu_arch="ARM Cortex-A55" ;;
+	0xd07) cpu_arch="ARM Cortex-A57" ;;
+	0xd08) cpu_arch="ARM Cortex-A72" ;;
+	0xd09) cpu_arch="ARM Cortex-A73" ;;
+	0xd0a) cpu_arch="ARM Cortex-A75" ;;
+	0xd0b) cpu_arch="ARM Cortex-A76" ;;
+	0xd0c) cpu_arch="ARM Neoverse N1" ;;
+	0xd0d) cpu_arch="ARM Cortex-A77" ;;
+	0xd0e) cpu_arch="ARM Cortex-A76AE" ;;
+	0xd40) cpu_arch="ARM Neoverse V1" ;;
+	0xd41) cpu_arch="ARM Cortex-A78" ;;
+	0xd42) cpu_arch="ARM Cortex-A78AE" ;;
+	0xd44) cpu_arch="ARM Cortex-X1" ;;
+	0xd46) cpu_arch="ARM Cortex-A510" ;;
+	0xd47) cpu_arch="ARM Cortex-A710" ;;
+	0xd48) cpu_arch="ARM Cortex-X2" ;;
+	0xd49) cpu_arch="ARM Neoverse N2" ;;
+	0xd4a) cpu_arch="ARM Neoverse E1" ;;
+	0xd4b) cpu_arch="ARM Cortex-A78C" ;;
+	esac
+fi
+
+if [ -z "${cpu_arch}" ]; then
+	case "${DISTRIB_ARCH}" in
+	aarch64_cortex-a53) cpu_arch="ARM Cortex-A53" ;;
+	aarch64_cortex-a55) cpu_arch="ARM Cortex-A55" ;;
+	aarch64_cortex-a72) cpu_arch="ARM Cortex-A72" ;;
+	aarch64_cortex-a76) cpu_arch="ARM Cortex-A76" ;;
+	arm_cortex-a7*) cpu_arch="ARM Cortex-A7" ;;
+	arm_cortex-a9*) cpu_arch="ARM Cortex-A9" ;;
+	arm_cortex-a15*) cpu_arch="ARM Cortex-A15" ;;
+	esac
+fi
+
+[ -n "${cpu_arch}" ] || cpu_arch="${DISTRIB_ARCH:-?}"
+
+case "${DISTRIB_TARGET}" in
+"x86"/*)
+	cpu_cores="$(grep "core id" "${CPUINFO_PATH}" | sort -u | wc -l)C $(grep -c "processor" "${CPUINFO_PATH}")T" ;;
+*)
+	cpu_cores="$(grep -c "processor" "${CPUINFO_PATH}")" ;;
+esac
+
+case "${DISTRIB_TARGET}" in
+"bcm27xx"/*)
+	cpu_freq="$(( $(vcgencmd measure_clock arm | awk -F '=' '{print $2}') / 1000000 ))MHz" ;;
+"bcm53xx"/*)
+	cpu_freq="$(nvram get clkfreq | awk -F ',' '{print $1}')MHz" ;;
+"rockchip"/*|\
+"sunxi/cortexa53")
+	cpu_freq="$(awk '{printf("%.fMHz ", $0 / 1000)}' "${CPUFREQ_PATH}"/policy*/cpuinfo_cur_freq 2>/dev/null | awk '$1=$1')" ;;
+"x86"/*)
+	cpu_freq="$(awk -F ': ' '/MHz/ {print $2; exit}' "${CPUINFO_PATH}")MHz" ;;
+*)
+	if [ -e "${CPUFREQ_PATH}/policy0/cpuinfo_cur_freq" ]; then
+		cpu_freq="$(awk '{printf("%.fMHz", $0 / 1000)}' "${CPUFREQ_PATH}/policy0/cpuinfo_cur_freq")"
+	elif [ -e "${CPUFREQ_PATH}/policy0/scaling_cur_freq" ]; then
+		cpu_freq="$(awk '{printf("%.fMHz", $0 / 1000)}' "${CPUFREQ_PATH}/policy0/scaling_cur_freq")"
+	fi
+	;;
+esac
+
+case "${DISTRIB_TARGET}" in
+"bcm27xx"/*)
+	cpu_temp="$(vcgencmd measure_temp | awk -F '=' '{print $2}' | awk -F "'" '{print $1}')°C" ;;
+"ipq40xx"/*|"ipq806x"/*|"mediatek"/*|"qualcommax"/*) ;;
+"x86"/*)
+	if command -v sensors >/dev/null 2>&1; then
+		cpu_temp="$(sensors 2>/dev/null | awk '/Package id |Core |Tctl|Tdie/ {gsub(/^\+/, "", $2); print $2; exit}')"
+	fi
+	;;
+*)
+	if [ -e "${THERMAL_PATH}/thermal_zone0/temp" ]; then
+		cpu_temp="$(awk '{printf("%.1f°C", $0 / 1000)}' "${THERMAL_PATH}/thermal_zone0/temp")"
+	fi
+	;;
+esac
+
+if [ -z "${cpu_freq}" ] && [ -n "${cpu_temp}" ]; then
+	printf '%s x %s (%s)' "${cpu_arch}" "${cpu_cores}" "${cpu_temp}"
+elif [ -z "${cpu_temp}" ] && [ -n "${cpu_freq}" ]; then
+	printf '%s x %s (%s)' "${cpu_arch}" "${cpu_cores}" "${cpu_freq}"
+elif [ -n "${cpu_temp}" ] && [ -n "${cpu_freq}" ]; then
+	printf '%s x %s (%s, %s)' "${cpu_arch}" "${cpu_cores}" "${cpu_freq}" "${cpu_temp}"
+else
+	printf '%s x %s' "${cpu_arch}" "${cpu_cores}"
+fi
