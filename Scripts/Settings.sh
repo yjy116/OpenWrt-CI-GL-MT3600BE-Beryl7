@@ -242,6 +242,16 @@ validate_daed_config_symbols() {
   fi
 }
 
+append_runtime_ccache_dir_to_config() {
+  if ! grep -qxF "CONFIG_CCACHE=y" .config; then
+    return
+  fi
+
+  sed -i '/^CONFIG_CCACHE_DIR=/d' .config
+  # 中文：OpenWrt 的 ccache 默认路径在源码树内；CI 中显式写入已恢复的持久缓存目录。
+  echo "CONFIG_CCACHE_DIR=\"${CCACHE_DIR}\"" >> .config
+}
+
 report_dropped_requested_packages() {
   local requested_file="${BUILD_ROOT}/tmp/requested-packages.txt"
   local final_file="${BUILD_ROOT}/tmp/final-packages.txt"
@@ -273,6 +283,7 @@ apply_config_fragments() {
   append_core_luci_language_packages
   append_theme_packages_to_config
   append_auto_i18n_packages_to_config
+  append_runtime_ccache_dir_to_config
 
   if [[ -n "${EXTRA_CONFIG_FILE:-}" && -f "${EXTRA_CONFIG_FILE}" ]]; then
     cat "${EXTRA_CONFIG_FILE}" >> .config

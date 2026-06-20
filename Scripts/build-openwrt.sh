@@ -87,6 +87,13 @@ prepare_shared_cache_dirs() {
 
   ln -sfn "${DL_DIR}" "${BUILD_ROOT}/dl"
 
+  if [[ -e "${BUILD_ROOT}/.ccache" && ! -L "${BUILD_ROOT}/.ccache" ]]; then
+    rm -rf "${BUILD_ROOT}/.ccache"
+  fi
+
+  # 中文：OpenWrt 默认把 ccache 写到源码树 .ccache；这里链接到 Actions 恢复的持久缓存目录。
+  ln -sfn "${CCACHE_DIR}" "${BUILD_ROOT}/.ccache"
+
   export CCACHE_DIR
   export CCACHE_BASEDIR="${BUILD_ROOT}"
   export CCACHE_COMPILERCHECK="${CCACHE_COMPILERCHECK:-content}"
