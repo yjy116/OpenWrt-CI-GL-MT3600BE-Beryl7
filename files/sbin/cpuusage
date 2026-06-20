@@ -1,6 +1,6 @@
 #!/bin/sh
 
-# 中文：为 LuCI 系统概览提供 CPU 使用率和 MediaTek PPE 硬件流表统计。
+# 中文：为 LuCI 系统概览提供 CPU 使用率、连接跟踪容量和 MediaTek PPE 硬件流表统计。
 # 中文：Linux flowtable 以 conntrack 的 [HW_OFFLOAD] 标记表示硬件加速命中；MTK 驱动中对应硬件称为 PPE。
 
 get_cpu_usage() {
@@ -21,6 +21,22 @@ get_cpu_usage() {
 			}
 		}
 	'
+}
+
+get_conntrack_usage() {
+	local current maximum
+
+	current="$(cat /proc/sys/net/netfilter/nf_conntrack_count 2>/dev/null || true)"
+	maximum="$(cat /proc/sys/net/netfilter/nf_conntrack_max 2>/dev/null || true)"
+
+	if [ -z "${current}" ] && [ -r /proc/net/nf_conntrack ]; then
+		current="$(wc -l < /proc/net/nf_conntrack 2>/dev/null || true)"
+	fi
+
+	[ -n "${current}" ] || current="0"
+	[ -n "${maximum}" ] || maximum="0"
+
+	printf '%s/%s' "${current}" "${maximum}"
 }
 
 count_hw_offload_conntrack() {
@@ -103,6 +119,7 @@ get_hfo_state() {
 
 cpu="$(get_cpu_usage)"
 [ -n "${cpu}" ] || cpu="0"
+conntrack="$(get_conntrack_usage)"
 hfo="$(get_hfo_state)"
 
 if counts="$(count_hw_offload_conntrack)"; then
@@ -117,4 +134,4 @@ udp="${2:-0}"
 other="${3:-0}"
 total="${4:-0}"
 
-printf 'CPU: %s%% HFO: %s PPE: tcp %s udp %s other %s total %s' "${cpu}" "${hfo}" "${tcp}" "${udp}" "${other}" "${total}"
+printf 'CPU: %s%% CT: %s HFO: %s PPE: tcp %s udp %s other %s total %s' "${cpu}" "${conntrack}" "${hfo}" "${tcp}" "${udp}" "${other}" "${total}"
