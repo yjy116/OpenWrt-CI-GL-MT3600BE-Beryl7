@@ -8,10 +8,49 @@ set system.@system[0].timezone='CST-8'
 commit system
 EOF
 
+if ! uci -q get network.lan >/dev/null; then
+	uci -q set network.lan='interface'
+fi
+
 uci -q batch <<'EOF'
+set network.lan.proto='static'
 set network.lan.ipaddr='192.168.18.1'
+set network.lan.netmask='255.255.255.0'
 commit network
 EOF
+
+if ! uci -q get dhcp.@dnsmasq[0] >/dev/null; then
+	uci -q add dhcp dnsmasq >/dev/null
+fi
+
+uci -q batch <<'EOF'
+set dhcp.@dnsmasq[0].domainneeded='1'
+set dhcp.@dnsmasq[0].boguspriv='1'
+set dhcp.@dnsmasq[0].filterwin2k='0'
+set dhcp.@dnsmasq[0].localise_queries='1'
+set dhcp.@dnsmasq[0].rebind_protection='1'
+set dhcp.@dnsmasq[0].rebind_localhost='1'
+set dhcp.@dnsmasq[0].local='/lan/'
+set dhcp.@dnsmasq[0].domain='lan'
+set dhcp.@dnsmasq[0].expandhosts='1'
+set dhcp.@dnsmasq[0].authoritative='1'
+set dhcp.@dnsmasq[0].readethers='1'
+set dhcp.@dnsmasq[0].leasefile='/tmp/dhcp.leases'
+set dhcp.@dnsmasq[0].resolvfile='/tmp/resolv.conf.d/resolv.conf.auto'
+set dhcp.@dnsmasq[0].localservice='1'
+set dhcp.lan='dhcp'
+set dhcp.lan.interface='lan'
+set dhcp.lan.start='100'
+set dhcp.lan.limit='150'
+set dhcp.lan.leasetime='12h'
+set dhcp.lan.dhcpv4='server'
+set dhcp.lan.ignore='0'
+commit dhcp
+EOF
+
+if [ -x /etc/init.d/dnsmasq ]; then
+	/etc/init.d/dnsmasq enable
+fi
 
 if uci -q get luci.main >/dev/null; then
 	uci -q batch <<'EOF'
@@ -64,6 +103,50 @@ setup_default_wifi() {
 }
 
 setup_default_wifi
+
+# 中文：AdGuardHome 不接管 53 端口，避免影响 dnsmasq 的 DNS 与 DHCP。
+# 中文：如用户已经初始化过 AdGuardHome 配置，只把 DNS 监听端口固定到 5335。
+setup_adguardhome_dns_port() {
+	local agh_config
+
+	agh_config="$(uci -q get adguardhome.config.config_file 2>/dev/null || true)"
+	[ -n "${agh_config}" ] || agh_config='/etc/adguardhome/adguardhome.yaml'
+
+	if uci -q get adguardhome.config >/dev/null; then
+		uci -q set adguardhome.config.enabled='0'
+		uci -q set adguardhome.config.config_file="${agh_config}"
+		uci -q commit adguardhome
+	fi
+
+	[ -s "${agh_config}" ] || return 0
+
+	awk '
+		BEGIN { in_dns = 0; done = 0 }
+		/^dns:[[:space:]]*$/ { in_dns = 1; print; next }
+		in_dns && /^[^[:space:]][^:]*:/ {
+			if (!done) {
+				print "  port: 5335"
+				done = 1
+			}
+			in_dns = 0
+		}
+		in_dns && /^[[:space:]]+port:[[:space:]]*/ {
+			if (!done) {
+				print "  port: 5335"
+				done = 1
+			}
+			next
+		}
+		{ print }
+		END {
+			if (in_dns && !done) {
+				print "  port: 5335"
+			}
+		}
+	' "${agh_config}" > "${agh_config}.tmp" && mv "${agh_config}.tmp" "${agh_config}"
+}
+
+setup_adguardhome_dns_port
 
 if [ -x /etc/init.d/irqbalance ]; then
 	/etc/init.d/irqbalance enable
