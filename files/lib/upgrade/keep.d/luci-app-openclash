@@ -1,0 +1,4 @@
+/etc/openclash/*.yaml
+/etc/openclash/config/
+/etc/openclash/custom/
+/etc/openclash/overwrite/
