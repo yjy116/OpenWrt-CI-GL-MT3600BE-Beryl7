@@ -14,7 +14,7 @@ fi
 
 uci -q batch <<'EOF'
 set network.lan.proto='static'
-set network.lan.ipaddr='192.168.18.1'
+set network.lan.ipaddr='192.168.16.1'
 set network.lan.netmask='255.255.255.0'
 commit network
 EOF
