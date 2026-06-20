@@ -81,7 +81,11 @@ setup_default_wifi() {
 	printf '%s\n' "${wifi_key}" > "${wifi_key_file}"
 
 	if uci -q get wireless.radio0 >/dev/null; then
-		uci -q set wireless.radio0.country='CN'
+		uci -q set wireless.radio0.country='US'
+		uci -q set wireless.radio0.channel='1'
+		uci -q set wireless.radio0.htmode='EHT20'
+		uci -q set wireless.radio0.txpower='23'
+		uci -q set wireless.radio0.cell_density='0'
 	fi
 
 	uci -q set wireless.default_radio0.disabled='0'
@@ -90,10 +94,15 @@ setup_default_wifi() {
 	uci -q set wireless.default_radio0.key="${wifi_key}"
 
 	if uci -q get wireless.radio1 >/dev/null && uci -q get wireless.default_radio1 >/dev/null; then
-		uci -q set wireless.radio1.country='CN'
+		uci -q set wireless.radio1.country='US'
+		uci -q set wireless.radio1.channel='149'
+		uci -q set wireless.radio1.htmode='EHT80'
+		uci -q set wireless.radio1.txpower='30'
+		uci -q set wireless.radio1.cell_density='0'
 		uci -q set wireless.default_radio1.disabled='0'
 		uci -q set wireless.default_radio1.ssid="${wifi_ssid}"
-		uci -q set wireless.default_radio1.encryption='psk2'
+		uci -q set wireless.default_radio1.encryption='sae-mixed'
+		uci -q set wireless.default_radio1.ieee80211w='1'
 		uci -q set wireless.default_radio1.key="${wifi_key}"
 	fi
 
