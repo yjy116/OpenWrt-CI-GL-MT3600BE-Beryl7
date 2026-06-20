@@ -198,6 +198,50 @@ patch_luci_cpuusage_backend() {
 
 patch_luci_cpuusage_backend
 
+# 中文：代理和 DDNS 插件保留配置入口，但默认开关关闭；需要时由用户在 LuCI 中手动启用。
+setup_optional_services_disabled() {
+	local ddns_service
+
+	if uci -q get daed.config >/dev/null; then
+		uci -q set daed.config.enabled='0'
+		uci -q commit daed
+	fi
+
+	if uci -q get openclash.config >/dev/null; then
+		uci -q set openclash.config.enable='0'
+		uci -q commit openclash
+	fi
+
+	if uci -q get homeproxy.config >/dev/null; then
+		uci -q set homeproxy.config.main_node='nil'
+		uci -q set homeproxy.config.main_udp_node='same'
+		uci -q commit homeproxy
+	fi
+
+	if uci -q get homeproxy.control >/dev/null; then
+		uci -q set homeproxy.control.lan_proxy_mode='disabled'
+		uci -q commit homeproxy
+	fi
+
+	if uci -q get homeproxy.server >/dev/null; then
+		uci -q set homeproxy.server.enabled='0'
+		uci -q commit homeproxy
+	fi
+
+	if uci -q show ddns >/dev/null 2>&1; then
+		for ddns_service in $(uci -q show ddns | sed -n "s/^ddns\.\([^.=]*\)=service$/\1/p"); do
+			uci -q set "ddns.${ddns_service}.enabled=0" || true
+		done
+		uci -q commit ddns
+	fi
+
+	if [ -x /etc/init.d/ddns ]; then
+		/etc/init.d/ddns disable || true
+	fi
+}
+
+setup_optional_services_disabled
+
 if [ -x /etc/init.d/irqbalance ]; then
 	/etc/init.d/irqbalance enable
 fi
