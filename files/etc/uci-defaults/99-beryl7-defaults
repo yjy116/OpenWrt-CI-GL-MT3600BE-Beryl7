@@ -52,6 +52,23 @@ if [ -x /etc/init.d/dnsmasq ]; then
 	/etc/init.d/dnsmasq enable
 fi
 
+# 中文：ZeroTier 接口地址由 zerotier-one 托管，不应在虚拟网卡上启动 DHCP 客户端或服务端。
+setup_zerotier_no_dhcp() {
+	if uci -q get network.zerotier >/dev/null; then
+		uci -q set network.zerotier.proto='none'
+		uci -q commit network
+	fi
+
+	if uci -q get dhcp >/dev/null; then
+		uci -q set dhcp.zerotier='dhcp'
+		uci -q set dhcp.zerotier.interface='zerotier'
+		uci -q set dhcp.zerotier.ignore='1'
+		uci -q commit dhcp
+	fi
+}
+
+setup_zerotier_no_dhcp
+
 if uci -q get luci.main >/dev/null; then
 	uci -q batch <<'EOF'
 set luci.main.lang='zh-cn'

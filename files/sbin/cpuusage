@@ -24,9 +24,11 @@ get_cpu_usage() {
 }
 
 count_hw_offload_conntrack() {
+	local counts total
+
 	[ -r /proc/net/nf_conntrack ] || return 1
 
-	awk '
+	counts="$(awk '
 		BEGIN { tcp = 0; udp = 0; other = 0; total = 0 }
 		/\[HW_OFFLOAD\]/ {
 			total++
@@ -39,9 +41,14 @@ count_hw_offload_conntrack() {
 		}
 		END {
 			printf "%d %d %d %d", tcp, udp, other, total
-			exit total > 0 ? 0 : 1
 		}
-	' /proc/net/nf_conntrack
+	' /proc/net/nf_conntrack)" || return 1
+
+	set -- ${counts}
+	total="${4:-0}"
+	[ "${total}" != "0" ] || return 1
+
+	printf '%s' "${counts}"
 }
 
 count_ppe_file() {
