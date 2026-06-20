@@ -78,8 +78,25 @@ count_ppe_entries() {
 	count_ppe_file /sys/kernel/debug/ppe*/entries
 }
 
+get_hfo_state() {
+	local flow hw
+
+	flow="$(uci -q get firewall.@defaults[0].flow_offloading 2>/dev/null)"
+	hw="$(uci -q get firewall.@defaults[0].flow_offloading_hw 2>/dev/null)"
+
+	if [ "${flow}" = "1" ] && [ "${hw}" = "1" ]; then
+		if nft list ruleset 2>/dev/null | grep -q 'flags offload'; then
+			printf 'on'
+			return
+		fi
+	fi
+
+	printf 'off'
+}
+
 cpu="$(get_cpu_usage)"
 [ -n "${cpu}" ] || cpu="0"
+hfo="$(get_hfo_state)"
 
 if counts="$(count_hw_offload_conntrack)"; then
 	:
@@ -93,4 +110,4 @@ udp="${2:-0}"
 other="${3:-0}"
 total="${4:-0}"
 
-printf 'CPU: %s%% PPE: tcp %s udp %s other %s total %s' "${cpu}" "${tcp}" "${udp}" "${other}" "${total}"
+printf 'CPU: %s%% HFO: %s PPE: tcp %s udp %s other %s total %s' "${cpu}" "${hfo}" "${tcp}" "${udp}" "${other}" "${total}"
