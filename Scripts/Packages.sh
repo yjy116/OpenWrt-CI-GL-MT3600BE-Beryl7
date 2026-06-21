@@ -58,6 +58,8 @@ run_vendor_hook() {
   local hook="${2:-}"
   local openclash_po2lmo_dir
   local tailscale_makefile
+  local daed_makefile
+  local luci_daed_init
 
   case "${hook}" in
     ""|none)
@@ -89,6 +91,27 @@ run_vendor_hook() {
         sed -i 's|include ../../luci.mk|include $(TOPDIR)/feeds/luci/luci.mk|g' "${luci_makefile}"
         echo "Patched LuCI make include for standalone package: ${luci_makefile}"
       done < <(find "${repo_dir}" -type f -name Makefile -print0)
+      ;;
+    daed-kix-compat)
+      # 中文：使用 QiuSimons/luci-app-daed@kix 时，先移除 feeds 中自带的 daed/luci-app-daed，确保 vendor 版本接管构建。
+      rm -rf \
+        "${BUILD_ROOT}/feeds/luci/applications/luci-app-daed" \
+        "${BUILD_ROOT}/package/feeds/luci/luci-app-daed" \
+        "${BUILD_ROOT}/feeds/packages/net/daed" \
+        "${BUILD_ROOT}/package/feeds/packages/daed"
+
+      daed_makefile="${BUILD_ROOT}/package/daed/Makefile"
+      if [[ -f "${daed_makefile}" ]]; then
+        sed -i 's/pnpm install ; \\/pnpm install --no-frozen-lockfile ; \\/g' "${daed_makefile}"
+        sed -i 's|github.com/daeuniverse/quic-go|github.com/olicesx/quic-go|g' "${daed_makefile}"
+        echo "Patched DAED kix Makefile compatibility: ${daed_makefile}"
+      fi
+
+      luci_daed_init="${BUILD_ROOT}/package/luci-app-daed/root/etc/init.d/luci_daed"
+      if [[ -f "${luci_daed_init}" ]]; then
+        sed -i 's|/run/i\\  procd_set_param|/procd_set_param command/i \\\tprocd_set_param|g' "${luci_daed_init}"
+        echo "Patched luci_daed init compatibility: ${luci_daed_init}"
+      fi
       ;;
     *)
       echo "Unknown vendor hook: ${hook}"
