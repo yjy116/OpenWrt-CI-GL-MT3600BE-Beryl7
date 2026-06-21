@@ -147,6 +147,11 @@ setup_adguardhome_dns_port() {
 		uci -q commit adguardhome
 	fi
 
+	# 中文：保留 AdGuardHome 插件和配置入口，但默认不随系统启动，避免占用 53 端口或增加开机负担。
+	if [ -x /etc/init.d/adguardhome ]; then
+		/etc/init.d/adguardhome disable || true
+	fi
+
 	[ -s "${agh_config}" ] || return 0
 
 	awk '
@@ -243,6 +248,12 @@ setup_optional_services_disabled() {
 setup_optional_services_disabled
 
 if [ -x /etc/init.d/irqbalance ]; then
+	# 中文：irqbalance 的 init.d enable 只控制启动链接；UCI enabled=1 才会真正拉起进程。
+	if ! uci -q get irqbalance.irqbalance >/dev/null; then
+		uci -q set irqbalance.irqbalance='irqbalance'
+	fi
+	uci -q set irqbalance.irqbalance.enabled='1'
+	uci -q commit irqbalance
 	/etc/init.d/irqbalance enable
 fi
 
