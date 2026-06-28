@@ -17,9 +17,9 @@ on:
           - immortalwrt-compatible
           - openwrt-official
       pin_mt76_known_good:
-        description: Pin mt76 to the #35 known-good WiFi snapshot
+        description: Build stable firmware with the #35 known-good mt76 snapshot
         required: true
-        default: false
+        default: true
         type: boolean
       mt76_source_date:
         description: Custom mt76 source date for bisect builds, leave empty for mainline
@@ -78,7 +78,7 @@ jobs:
       wrt_theme: aurora
       wrt_branch: ${{ inputs.openwrt_branch || 'main' }}
       feeds_profile: ${{ inputs.feeds_profile || 'immortalwrt-compatible' }}
-      pin_mt76_known_good: ${{ github.event_name == 'workflow_dispatch' && inputs.pin_mt76_known_good }}
+      pin_mt76_known_good: ${{ github.event_name == 'push' || inputs.pin_mt76_known_good }}
       mt76_source_date: ${{ inputs.mt76_source_date || '' }}
       mt76_source_version: ${{ inputs.mt76_source_version || '' }}
       mt76_mirror_hash: ${{ inputs.mt76_mirror_hash || '' }}

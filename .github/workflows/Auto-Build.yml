@@ -63,5 +63,6 @@ jobs:
       wrt_theme: aurora
       wrt_branch: main
       feeds_profile: immortalwrt-compatible
+      pin_mt76_known_good: true
       cleanup_runner: true
       publish_release: true

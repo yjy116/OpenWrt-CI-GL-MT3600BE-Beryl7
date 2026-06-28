@@ -30,9 +30,14 @@ OpenWrt 固件。
 
 ## MT3600BE WiFi / mt76 策略
 
-默认构建优先跟随 OpenWrt mainline 的 mt76 驱动，方便尽量跟上主线更新。
+完整固件构建默认固定到 #35 已验证的 mt76 快照，避免主线 mt76 回归导致可刷固件
+出现 WiFi 连接卡死。`MT3600BE-TEST` 仍默认跟随 OpenWrt mainline 的 mt76 驱动，
+用于继续跟踪上游修复和定位具体坏点。
 
-如果某个 OpenWrt 主线版本出现 WiFi 连接异常，可以在手动触发 workflow 时启用：
+2026-06-28 实机日志确认：OpenWrt 主线 `r0-23e5161` 上连接 WiFi 后曾触发
+`mt7996e ... Message 00130022 timeout`，随后 `napi/phy0-0` 在
+`mt7996_mcu_rx_event -> mt7996_queue_rx_skb -> mt76_dma_rx_poll` 中发生 RCU stall。
+因此在上游修复前，日常可刷固件建议保持：
 
 ```text
 Pin mt76 to the #35 known-good WiFi snapshot
