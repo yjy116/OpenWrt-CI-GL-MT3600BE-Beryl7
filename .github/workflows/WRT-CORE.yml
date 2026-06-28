@@ -66,7 +66,6 @@ on:
 
 permissions:
   contents: write
-  actions: read
 
 concurrency:
   group: ${{ inputs.wrt_config }}-${{ inputs.wrt_branch }}-${{ inputs.feeds_profile }}-${{ inputs.pin_mt76_known_good && 'mt76-known-good' || (inputs.mt76_source_version != '' && inputs.mt76_source_version || 'mt76-mainline') }}-${{ github.ref }}
@@ -79,7 +78,6 @@ jobs:
     timeout-minutes: 360
     permissions:
       contents: write
-      actions: read
     env:
       WRT_CONFIG: ${{ inputs.wrt_config }}
       WRT_NAME: ${{ inputs.wrt_name }}
