@@ -52,8 +52,8 @@ if [ -x /etc/init.d/dnsmasq ]; then
 	/etc/init.d/dnsmasq enable
 fi
 
-# 中文：ZeroTier 接口地址由 zerotier-one 托管，不应在虚拟网卡上启动 DHCP 客户端或服务端。
 setup_zerotier_no_dhcp() {
+	# 中文：ZeroTier 接口地址由 zerotier-one 托管，不在虚拟网卡上启动 DHCP。
 	if uci -q get network.zerotier >/dev/null; then
 		uci -q set network.zerotier.proto='none'
 		uci -q commit network
@@ -84,8 +84,8 @@ commit firewall
 EOF
 fi
 
-# 中文：首次启动时启用默认无线，并使用用户指定的 SSID 与密码。
 setup_default_wifi() {
+	# 中文：首次启动时启用默认无线，并使用用户指定的 SSID 与密码。
 	local wifi_key_file wifi_key wifi_ssid_2g wifi_ssid_5g
 
 	[ -s /etc/config/wireless ] || return 0
@@ -127,15 +127,15 @@ setup_default_wifi() {
 	fi
 
 	uci -q commit wireless
-	# 中文：首次启动脚本运行较早，只写入 UCI 配置；系统后续启动 network/wifi 时会自动应用。
+	# 中文：首次启动脚本运行较早，只写入 UCI 配置；后续 network/wifi 启动时会自动应用。
 	# 中文：避免在这里主动 reload 无线，防止驱动初始化阶段卡住首次启动流程。
 }
 
 setup_default_wifi
 
-# 中文：AdGuardHome 不接管 53 端口，避免影响 dnsmasq 的 DNS 与 DHCP。
-# 中文：如用户已经初始化过 AdGuardHome 配置，只把 DNS 监听端口固定到 5335。
 setup_adguardhome_dns_port() {
+	# 中文：AdGuardHome 不接管 53 端口，避免影响 dnsmasq 的 DNS 与 DHCP。
+	# 中文：如用户已经初始化过 AdGuardHome 配置，只把 DNS 监听端口固定到 5335。
 	local agh_config
 
 	agh_config="$(uci -q get adguardhome.config.config_file 2>/dev/null || true)"
@@ -191,7 +191,7 @@ patch_luci_cpuusage_backend() {
 	grep -q '/sbin/cpuusage' "${luci_ucode}" && return 0
 
 	tmp_file="${luci_ucode}.tmp"
-	# 中文：OpenWrt 主线默认只返回 CPU 百分比；这里复用 /sbin/cpuusage 输出 CPU 与 MTK PPE 硬件流表统计。
+	# 中文：OpenWrt 主线默认只返回 CPU 百分比；这里复用 /sbin/cpuusage 输出 CPU 与加速状态。
 	awk '
 		/const fd = popen\('\''top -n1 \| awk/ {
 			print "\t\t\tconst fd = popen('\''/sbin/cpuusage'\'');"
@@ -203,8 +203,8 @@ patch_luci_cpuusage_backend() {
 
 patch_luci_cpuusage_backend
 
-# 中文：代理和 DDNS 插件保留配置入口，但默认开关关闭；需要时由用户在 LuCI 中手动启用。
 setup_optional_services_disabled() {
+	# 中文：代理和 DDNS 插件保留配置入口，但默认开关关闭；需要时由用户在 LuCI 中手动启用。
 	local ddns_service
 
 	if uci -q get daed.config >/dev/null; then

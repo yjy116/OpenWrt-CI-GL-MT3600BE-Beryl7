@@ -1,7 +1,7 @@
 #!/bin/sh
 
-# 中文：为 LuCI 系统概览提供 CPU 使用率、连接跟踪容量和 MediaTek PPE 硬件流表统计。
-# 中文：Linux flowtable 以 conntrack 的 [HW_OFFLOAD] 标记表示硬件加速命中；MTK 驱动中对应硬件称为 PPE。
+# 中文：为 LuCI 系统概览提供 CPU、连接跟踪容量和流量加速状态。
+# 中文：SW OFFLOAD 是 Linux flowtable 软件快路径；CT HW 是 conntrack 的 [HW_OFFLOAD] 标记；PPE-BND 是 MTK PPE 表里实际绑定的硬件流。
 
 get_cpu_usage() {
 	top -bn1 2>/dev/null | awk '
@@ -39,14 +39,25 @@ get_conntrack_usage() {
 	printf '%s/%s' "${current}" "${maximum}"
 }
 
-count_hw_offload_conntrack() {
-	local counts total
+count_conntrack_marker() {
+	local marker="$1"
 
-	[ -r /proc/net/nf_conntrack ] || return 1
+	[ -r /proc/net/nf_conntrack ] || {
+		printf '0 0 0 0'
+		return
+	}
 
-	counts="$(awk '
+	awk -v marker="${marker}" '
 		BEGIN { tcp = 0; udp = 0; other = 0; total = 0 }
-		/\[HW_OFFLOAD\]/ {
+		{
+			if (marker == "sw") {
+				if ($0 !~ /\[OFFLOAD\]/ || $0 ~ /\[HW_OFFLOAD\]/)
+					next
+			} else if (marker == "hw") {
+				if ($0 !~ /\[HW_OFFLOAD\]/)
+					next
+			}
+
 			total++
 			if ($3 == "tcp")
 				tcp++
@@ -55,23 +66,14 @@ count_hw_offload_conntrack() {
 			else
 				other++
 		}
-		END {
-			printf "%d %d %d %d", tcp, udp, other, total
-		}
-	' /proc/net/nf_conntrack)" || return 1
-
-	set -- ${counts}
-	total="${4:-0}"
-	[ "${total}" != "0" ] || return 1
-
-	printf '%s' "${counts}"
+		END { printf "%d %d %d %d", tcp, udp, other, total }
+	' /proc/net/nf_conntrack 2>/dev/null
 }
 
-count_ppe_file() {
+count_ppe_bnd_file() {
 	awk '
 		BEGIN { tcp = 0; udp = 0; other = 0; total = 0 }
-		/^[[:space:]]*$/ { next }
-		$2 == "INV" || $2 == "UNB" || $2 == "FIN" { next }
+		$2 != "BND" { next }
 		{
 			line = tolower($0)
 			total++
@@ -87,18 +89,18 @@ count_ppe_file() {
 	' "$@" 2>/dev/null
 }
 
-count_ppe_entries() {
+count_ppe_bnd_entries() {
 	local counts total
 
-	counts="$(count_ppe_file /sys/kernel/debug/ppe*/bind)"
+	counts="$(count_ppe_bnd_file /sys/kernel/debug/ppe*/bind)"
 	set -- ${counts}
 	total="${4:-0}"
 	if [ "${total}" != "0" ]; then
 		printf '%s' "${counts}"
-		return 0
+		return
 	fi
 
-	count_ppe_file /sys/kernel/debug/ppe*/entries
+	count_ppe_bnd_file /sys/kernel/debug/ppe*/entries
 }
 
 get_hfo_state() {
@@ -117,21 +119,23 @@ get_hfo_state() {
 	printf 'off'
 }
 
+format_counts() {
+	set -- $1
+	printf 'tcp %s udp %s other %s total %s' "${1:-0}" "${2:-0}" "${3:-0}" "${4:-0}"
+}
+
 cpu="$(get_cpu_usage)"
 [ -n "${cpu}" ] || cpu="0"
 conntrack="$(get_conntrack_usage)"
 hfo="$(get_hfo_state)"
+sw_counts="$(count_conntrack_marker sw)"
+ct_hw_counts="$(count_conntrack_marker hw)"
+ppe_bnd_counts="$(count_ppe_bnd_entries)"
 
-if counts="$(count_hw_offload_conntrack)"; then
-	:
-else
-	counts="$(count_ppe_entries)"
-fi
-
-set -- ${counts}
-tcp="${1:-0}"
-udp="${2:-0}"
-other="${3:-0}"
-total="${4:-0}"
-
-printf 'CPU: %s%% CT: %s HFO: %s PPE: tcp %s udp %s other %s total %s' "${cpu}" "${conntrack}" "${hfo}" "${tcp}" "${udp}" "${other}" "${total}"
+printf 'CPU: %s%% CT: %s HFO: %s | SW OFFLOAD: %s | CT HW: %s | PPE-BND: %s' \
+	"${cpu}" \
+	"${conntrack}" \
+	"${hfo}" \
+	"$(format_counts "${sw_counts}")" \
+	"$(format_counts "${ct_hw_counts}")" \
+	"$(format_counts "${ppe_bnd_counts}")"
