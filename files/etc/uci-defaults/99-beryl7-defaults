@@ -8,6 +8,45 @@ set system.@system[0].timezone='CST-8'
 commit system
 EOF
 
+setup_build_version_description() {
+	# 中文：构建时间由 CI 写入 /etc/beryl7-build-info；首次启动时追加到 LuCI 固件版本显示。
+	local release_file version_file build_label current_desc new_desc current_version
+
+	[ -r /etc/beryl7-build-info ] || return 0
+	. /etc/beryl7-build-info
+	build_label="${BUILD_LABEL:-}"
+	[ -n "${build_label}" ] || return 0
+
+	release_file='/etc/openwrt_release'
+	version_file='/etc/openwrt_version'
+
+	if [ -r "${release_file}" ]; then
+		current_desc="$(
+			. "${release_file}" 2>/dev/null
+			printf '%s' "${DISTRIB_DESCRIPTION:-}"
+		)"
+		if [ -n "${current_desc}" ]; then
+			case "${current_desc}" in
+			*"${build_label}"*) ;;
+			*)
+				new_desc="${current_desc} / ${build_label}"
+				sed -i "s|^DISTRIB_DESCRIPTION=.*|DISTRIB_DESCRIPTION='${new_desc}'|" "${release_file}"
+				;;
+			esac
+		fi
+	fi
+
+	if [ -r "${version_file}" ]; then
+		current_version="$(cat "${version_file}" 2>/dev/null)"
+		case "${current_version}" in
+		*"${build_label}"*) ;;
+		*) printf '%s / %s\n' "${current_version}" "${build_label}" > "${version_file}" ;;
+		esac
+	fi
+}
+
+setup_build_version_description
+
 if ! uci -q get network.lan >/dev/null; then
 	uci -q set network.lan='interface'
 fi

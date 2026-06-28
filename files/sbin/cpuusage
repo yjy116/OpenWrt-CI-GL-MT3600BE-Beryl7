@@ -119,6 +119,11 @@ get_hfo_state() {
 	printf 'off'
 }
 
+format_total() {
+	set -- $1
+	printf '%s' "${4:-0}"
+}
+
 format_counts() {
 	set -- $1
 	printf 'tcp %s udp %s other %s total %s' "${1:-0}" "${2:-0}" "${3:-0}" "${4:-0}"
@@ -132,10 +137,20 @@ sw_counts="$(count_conntrack_marker sw)"
 ct_hw_counts="$(count_conntrack_marker hw)"
 ppe_bnd_counts="$(count_ppe_bnd_entries)"
 
-printf 'CPU: %s%% CT: %s HFO: %s | SW OFFLOAD: %s | CT HW: %s | PPE-BND: %s' \
-	"${cpu}" \
-	"${conntrack}" \
-	"${hfo}" \
-	"$(format_counts "${sw_counts}")" \
-	"$(format_counts "${ct_hw_counts}")" \
-	"$(format_counts "${ppe_bnd_counts}")"
+if [ "${CPUUSAGE_DETAIL:-0}" = "1" ]; then
+	printf '%s%% | CT %s | HFO %s | SW %s | CT-HW %s | PPE %s' \
+		"${cpu}" \
+		"${conntrack}" \
+		"${hfo}" \
+		"$(format_counts "${sw_counts}")" \
+		"$(format_counts "${ct_hw_counts}")" \
+		"$(format_counts "${ppe_bnd_counts}")"
+else
+	printf '%s%% | CT %s | HFO %s | SW %s | CT-HW %s | PPE %s' \
+		"${cpu}" \
+		"${conntrack}" \
+		"${hfo}" \
+		"$(format_total "${sw_counts}")" \
+		"$(format_total "${ct_hw_counts}")" \
+		"$(format_total "${ppe_bnd_counts}")"
+fi
