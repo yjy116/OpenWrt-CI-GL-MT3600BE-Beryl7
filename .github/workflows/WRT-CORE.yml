@@ -259,5 +259,4 @@ jobs:
             --repo "${GITHUB_REPOSITORY}" \
             --title "${{ steps.release_meta.outputs.title }}" \
             --notes-file "${{ steps.release_meta.outputs.notes_file }}" \
-            --target "${GITHUB_SHA}" \
             --prerelease
