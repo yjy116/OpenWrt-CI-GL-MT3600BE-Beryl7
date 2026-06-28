@@ -71,6 +71,8 @@ prepare_build_tree() {
 
 pin_mt76_known_good_snapshot() {
   local mt76_makefile="${BUILD_ROOT}/package/kernel/mt76/Makefile"
+  local mt76_patches_dir="${BUILD_ROOT}/package/kernel/mt76/patches"
+  local mt76_patches_src="${PROJECT_ROOT}/Patches/mt76-known-good"
 
   if [[ "${PIN_MT76_KNOWN_GOOD}" != "1" ]]; then
     echo "Skipping mt76 known-good snapshot pin."
@@ -89,6 +91,13 @@ pin_mt76_known_good_snapshot() {
     -e "s|^PKG_SOURCE_VERSION:=.*|PKG_SOURCE_VERSION:=${MT76_PIN_SOURCE_VERSION}|" \
     -e "s|^PKG_MIRROR_HASH:=.*|PKG_MIRROR_HASH:=${MT76_PIN_MIRROR_HASH}|" \
     "${mt76_makefile}"
+
+  if [[ -d "${mt76_patches_src}" ]]; then
+    mkdir -p "${mt76_patches_dir}"
+    cp "${mt76_patches_src}"/*.patch "${mt76_patches_dir}/"
+    echo "Restored mt76 compatibility patches for the pinned snapshot:"
+    ls -1 "${mt76_patches_dir}"/*.patch
+  fi
 
   echo "Pinned mt76 snapshot for MT3600BE WiFi stability:"
   grep -E '^(PKG_SOURCE_DATE|PKG_SOURCE_VERSION|PKG_MIRROR_HASH):=' "${mt76_makefile}"
