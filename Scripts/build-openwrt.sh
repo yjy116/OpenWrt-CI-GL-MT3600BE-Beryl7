@@ -20,6 +20,10 @@ WRT_THEME="${WRT_THEME:-aurora}"
 JOBS="${JOBS:-$(nproc)}"
 TEST_ONLY="${TEST_ONLY:-0}"
 BUILD_VERBOSE="${BUILD_VERBOSE:-0}"
+PIN_MT76_KNOWN_GOOD="${PIN_MT76_KNOWN_GOOD:-1}"
+MT76_PIN_SOURCE_DATE="${MT76_PIN_SOURCE_DATE:-2026-03-21}"
+MT76_PIN_SOURCE_VERSION="${MT76_PIN_SOURCE_VERSION:-018f60316d4dd6b4e741874eda40e2dfaa29df3b}"
+MT76_PIN_MIRROR_HASH="${MT76_PIN_MIRROR_HASH:-54a8125453a6fe04c89cf5335bdf0ea16c409361e1e5a79fb339d67cee26df0e}"
 BUILD_MODE="${1:-build}"
 
 source "${PROJECT_ROOT}/Scripts/Settings.sh"
@@ -63,6 +67,31 @@ prepare_build_tree() {
 
   run_git_with_retry 5 git -c http.version=HTTP/1.1 fetch origin "${REPO_BRANCH}" --depth 1
   git checkout -B "${REPO_BRANCH}" "origin/${REPO_BRANCH}"
+}
+
+pin_mt76_known_good_snapshot() {
+  local mt76_makefile="${BUILD_ROOT}/package/kernel/mt76/Makefile"
+
+  if [[ "${PIN_MT76_KNOWN_GOOD}" != "1" ]]; then
+    echo "Skipping mt76 known-good snapshot pin."
+    return
+  fi
+
+  if [[ ! -f "${mt76_makefile}" ]]; then
+    echo "mt76 Makefile was not found, cannot pin wireless driver snapshot: ${mt76_makefile}"
+    exit 1
+  fi
+
+  # 中文：OpenWrt main 在 304525e..f5d928e 之间把 mt76 从 2026-03-21 升到 2026-06-23；
+  # 中文：GL-MT3600BE 的 mt7996 WiFi 在新快照上出现连接后异常，默认锁定到 #35 已验证版本。
+  sed -i \
+    -e "s|^PKG_SOURCE_DATE:=.*|PKG_SOURCE_DATE:=${MT76_PIN_SOURCE_DATE}|" \
+    -e "s|^PKG_SOURCE_VERSION:=.*|PKG_SOURCE_VERSION:=${MT76_PIN_SOURCE_VERSION}|" \
+    -e "s|^PKG_MIRROR_HASH:=.*|PKG_MIRROR_HASH:=${MT76_PIN_MIRROR_HASH}|" \
+    "${mt76_makefile}"
+
+  echo "Pinned mt76 snapshot for MT3600BE WiFi stability:"
+  grep -E '^(PKG_SOURCE_DATE|PKG_SOURCE_VERSION|PKG_MIRROR_HASH):=' "${mt76_makefile}"
 }
 
 apply_feeds_profile() {
@@ -117,6 +146,7 @@ sync_rootfs_overlay() {
 prepare_build_workspace() {
   prepare_build_tree
   cd "${BUILD_ROOT}"
+  pin_mt76_known_good_snapshot
   apply_feeds_profile
   sync_rootfs_overlay
   prepare_shared_cache_dirs

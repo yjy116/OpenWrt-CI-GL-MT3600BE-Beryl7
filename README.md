@@ -33,6 +33,22 @@ That means:
 An `openwrt-official` feed profile is also included for experiments, but it is
 expected to drop or miss some packages from `Config/GENERAL.txt`.
 
+## MT3600BE WiFi Driver Pin
+
+The workflow pins `mt76` to the known-good snapshot used by build #35 by
+default:
+
+```text
+PKG_SOURCE_DATE:=2026-03-21
+PKG_SOURCE_VERSION:=018f60316d4dd6b4e741874eda40e2dfaa29df3b
+```
+
+中文：`openwrt/openwrt` 在 `304525e75451..f5d928e52a5f` 之间把 mt76
+升级到 `2026-06-23` 快照。GL-MT3600BE 的 mt7996 WiFi 在该新快照上出现
+连接客户端后异常，因此默认只锁定 mt76，无需回退整个 OpenWrt 主线。要测试
+上游最新 mt76，可以在手动触发 workflow 时关闭
+`Pin mt76 to the #35 known-good WiFi snapshot`。
+
 ## Workflows
 
 - `MT3600BE-TEST`: fast validation; prepares feeds, injects third-party

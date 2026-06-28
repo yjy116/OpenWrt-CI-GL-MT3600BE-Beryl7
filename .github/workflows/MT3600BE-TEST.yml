@@ -16,6 +16,11 @@ on:
         options:
           - immortalwrt-compatible
           - openwrt-official
+      pin_mt76_known_good:
+        description: Pin mt76 to the #35 known-good WiFi snapshot
+        required: true
+        default: true
+        type: boolean
       cleanup_runner:
         description: Free runner disk space before validation
         required: true
@@ -36,6 +41,7 @@ jobs:
       wrt_theme: aurora
       wrt_branch: ${{ inputs.openwrt_branch }}
       feeds_profile: ${{ inputs.feeds_profile }}
+      pin_mt76_known_good: ${{ inputs.pin_mt76_known_good }}
       cleanup_runner: ${{ inputs.cleanup_runner }}
       publish_release: false
       test_only: true

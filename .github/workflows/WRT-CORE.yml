@@ -31,6 +31,10 @@ on:
         required: false
         type: string
         default: immortalwrt-compatible
+      pin_mt76_known_good:
+        required: false
+        type: boolean
+        default: true
       cleanup_runner:
         required: false
         type: boolean
@@ -63,6 +67,7 @@ jobs:
       REPO_URL: ${{ inputs.wrt_repo }}
       REPO_BRANCH: ${{ inputs.wrt_branch }}
       FEEDS_PROFILE: ${{ inputs.feeds_profile }}
+      PIN_MT76_KNOWN_GOOD: ${{ inputs.pin_mt76_known_good && '1' || '0' }}
       RELEASE_TAG_PREFIX: mt3600be-openwrt
 
     steps:
