@@ -19,7 +19,27 @@ on:
       pin_mt76_known_good:
         description: Pin mt76 to the #35 known-good WiFi snapshot
         required: true
-        default: true
+        default: false
+        type: boolean
+      mt76_source_date:
+        description: Custom mt76 source date for bisect validation, leave empty for mainline
+        required: false
+        default: ''
+        type: string
+      mt76_source_version:
+        description: Custom mt76 commit for bisect validation, leave empty for mainline
+        required: false
+        default: ''
+        type: string
+      mt76_mirror_hash:
+        description: Custom mt76 mirror hash, leave empty to use skip for custom commits
+        required: false
+        default: ''
+        type: string
+      mt76_apply_known_good_patches:
+        description: Apply old mt76 Linux 6.18 compatibility patches for early bisect commits
+        required: true
+        default: false
         type: boolean
       cleanup_runner:
         description: Free runner disk space before validation
@@ -42,6 +62,10 @@ jobs:
       wrt_branch: ${{ inputs.openwrt_branch }}
       feeds_profile: ${{ inputs.feeds_profile }}
       pin_mt76_known_good: ${{ inputs.pin_mt76_known_good }}
+      mt76_source_date: ${{ inputs.mt76_source_date }}
+      mt76_source_version: ${{ inputs.mt76_source_version }}
+      mt76_mirror_hash: ${{ inputs.mt76_mirror_hash }}
+      mt76_apply_known_good_patches: ${{ inputs.mt76_apply_known_good_patches }}
       cleanup_runner: ${{ inputs.cleanup_runner }}
       publish_release: false
       test_only: true

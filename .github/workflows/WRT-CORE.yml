@@ -34,7 +34,23 @@ on:
       pin_mt76_known_good:
         required: false
         type: boolean
-        default: true
+        default: false
+      mt76_source_date:
+        required: false
+        type: string
+        default: ''
+      mt76_source_version:
+        required: false
+        type: string
+        default: ''
+      mt76_mirror_hash:
+        required: false
+        type: string
+        default: ''
+      mt76_apply_known_good_patches:
+        required: false
+        type: boolean
+        default: false
       cleanup_runner:
         required: false
         type: boolean
@@ -49,7 +65,7 @@ on:
         default: false
 
 concurrency:
-  group: ${{ inputs.wrt_config }}-${{ inputs.wrt_branch }}-${{ inputs.feeds_profile }}-${{ github.ref }}
+  group: ${{ inputs.wrt_config }}-${{ inputs.wrt_branch }}-${{ inputs.feeds_profile }}-${{ inputs.pin_mt76_known_good && 'mt76-known-good' || (inputs.mt76_source_version != '' && inputs.mt76_source_version || 'mt76-mainline') }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -68,6 +84,10 @@ jobs:
       REPO_BRANCH: ${{ inputs.wrt_branch }}
       FEEDS_PROFILE: ${{ inputs.feeds_profile }}
       PIN_MT76_KNOWN_GOOD: ${{ inputs.pin_mt76_known_good && '1' || '0' }}
+      MT76_SOURCE_DATE: ${{ inputs.mt76_source_date }}
+      MT76_SOURCE_VERSION: ${{ inputs.mt76_source_version }}
+      MT76_MIRROR_HASH: ${{ inputs.mt76_mirror_hash }}
+      MT76_APPLY_KNOWN_GOOD_PATCHES: ${{ inputs.mt76_apply_known_good_patches && '1' || '0' }}
       RELEASE_TAG_PREFIX: mt3600be-openwrt
 
     steps:

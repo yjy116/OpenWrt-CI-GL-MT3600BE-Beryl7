@@ -20,10 +20,14 @@ WRT_THEME="${WRT_THEME:-aurora}"
 JOBS="${JOBS:-$(nproc)}"
 TEST_ONLY="${TEST_ONLY:-0}"
 BUILD_VERBOSE="${BUILD_VERBOSE:-0}"
-PIN_MT76_KNOWN_GOOD="${PIN_MT76_KNOWN_GOOD:-1}"
-MT76_PIN_SOURCE_DATE="${MT76_PIN_SOURCE_DATE:-2026-03-21}"
-MT76_PIN_SOURCE_VERSION="${MT76_PIN_SOURCE_VERSION:-018f60316d4dd6b4e741874eda40e2dfaa29df3b}"
-MT76_PIN_MIRROR_HASH="${MT76_PIN_MIRROR_HASH:-54a8125453a6fe04c89cf5335bdf0ea16c409361e1e5a79fb339d67cee26df0e}"
+PIN_MT76_KNOWN_GOOD="${PIN_MT76_KNOWN_GOOD:-0}"
+MT76_KNOWN_GOOD_SOURCE_DATE="${MT76_KNOWN_GOOD_SOURCE_DATE:-2026-03-21}"
+MT76_KNOWN_GOOD_SOURCE_VERSION="${MT76_KNOWN_GOOD_SOURCE_VERSION:-018f60316d4dd6b4e741874eda40e2dfaa29df3b}"
+MT76_KNOWN_GOOD_MIRROR_HASH="${MT76_KNOWN_GOOD_MIRROR_HASH:-54a8125453a6fe04c89cf5335bdf0ea16c409361e1e5a79fb339d67cee26df0e}"
+MT76_SOURCE_DATE="${MT76_SOURCE_DATE:-}"
+MT76_SOURCE_VERSION="${MT76_SOURCE_VERSION:-}"
+MT76_MIRROR_HASH="${MT76_MIRROR_HASH:-}"
+MT76_APPLY_KNOWN_GOOD_PATCHES="${MT76_APPLY_KNOWN_GOOD_PATCHES:-0}"
 BUILD_MODE="${1:-build}"
 
 source "${PROJECT_ROOT}/Scripts/Settings.sh"
@@ -69,37 +73,61 @@ prepare_build_tree() {
   git checkout -B "${REPO_BRANCH}" "origin/${REPO_BRANCH}"
 }
 
-pin_mt76_known_good_snapshot() {
+configure_mt76_snapshot() {
   local mt76_makefile="${BUILD_ROOT}/package/kernel/mt76/Makefile"
   local mt76_patches_dir="${BUILD_ROOT}/package/kernel/mt76/patches"
   local mt76_patches_src="${PROJECT_ROOT}/Patches/mt76-known-good"
-
-  if [[ "${PIN_MT76_KNOWN_GOOD}" != "1" ]]; then
-    echo "Skipping mt76 known-good snapshot pin."
-    return
-  fi
+  local source_date=""
+  local source_version=""
+  local mirror_hash=""
+  local apply_patches="0"
+  local label="mainline"
 
   if [[ ! -f "${mt76_makefile}" ]]; then
-    echo "mt76 Makefile was not found, cannot pin wireless driver snapshot: ${mt76_makefile}"
+    echo "mt76 Makefile was not found, cannot configure wireless driver snapshot: ${mt76_makefile}"
     exit 1
   fi
 
-  # 中文：OpenWrt main 在 304525e..f5d928e 之间把 mt76 从 2026-03-21 升到 2026-06-23；
-  # 中文：GL-MT3600BE 的 mt7996 WiFi 在新快照上出现连接后异常，默认锁定到 #35 已验证版本。
+  if [[ "${PIN_MT76_KNOWN_GOOD}" == "1" ]]; then
+    label="known-good"
+    source_date="${MT76_KNOWN_GOOD_SOURCE_DATE}"
+    source_version="${MT76_KNOWN_GOOD_SOURCE_VERSION}"
+    mirror_hash="${MT76_KNOWN_GOOD_MIRROR_HASH}"
+    apply_patches="1"
+  elif [[ -n "${MT76_SOURCE_VERSION}" ]]; then
+    label="custom"
+    source_date="${MT76_SOURCE_DATE:-custom}"
+    source_version="${MT76_SOURCE_VERSION}"
+    mirror_hash="${MT76_MIRROR_HASH:-skip}"
+    apply_patches="${MT76_APPLY_KNOWN_GOOD_PATCHES}"
+  elif [[ -n "${MT76_SOURCE_DATE}${MT76_MIRROR_HASH}" || "${MT76_APPLY_KNOWN_GOOD_PATCHES}" != "0" ]]; then
+    echo "Custom mt76 options require MT76_SOURCE_VERSION."
+    exit 1
+  else
+    echo "Using OpenWrt mainline mt76 snapshot from source tree:"
+    grep -E '^(PKG_SOURCE_DATE|PKG_SOURCE_VERSION|PKG_MIRROR_HASH):=' "${mt76_makefile}"
+    return
+  fi
+
+  # 中文：默认跟随 OpenWrt mainline mt76；只有手动兜底或二分测试时才改写 mt76 快照。
   sed -i \
-    -e "s|^PKG_SOURCE_DATE:=.*|PKG_SOURCE_DATE:=${MT76_PIN_SOURCE_DATE}|" \
-    -e "s|^PKG_SOURCE_VERSION:=.*|PKG_SOURCE_VERSION:=${MT76_PIN_SOURCE_VERSION}|" \
-    -e "s|^PKG_MIRROR_HASH:=.*|PKG_MIRROR_HASH:=${MT76_PIN_MIRROR_HASH}|" \
+    -e "s|^PKG_SOURCE_DATE:=.*|PKG_SOURCE_DATE:=${source_date}|" \
+    -e "s|^PKG_SOURCE_VERSION:=.*|PKG_SOURCE_VERSION:=${source_version}|" \
+    -e "s|^PKG_MIRROR_HASH:=.*|PKG_MIRROR_HASH:=${mirror_hash}|" \
     "${mt76_makefile}"
 
-  if [[ -d "${mt76_patches_src}" ]]; then
+  if [[ "${apply_patches}" == "1" ]]; then
+    if [[ ! -d "${mt76_patches_src}" ]]; then
+      echo "mt76 compatibility patches were requested but not found: ${mt76_patches_src}"
+      exit 1
+    fi
     mkdir -p "${mt76_patches_dir}"
     cp "${mt76_patches_src}"/*.patch "${mt76_patches_dir}/"
-    echo "Restored mt76 compatibility patches for the pinned snapshot:"
+    echo "Restored mt76 compatibility patches for the selected snapshot:"
     ls -1 "${mt76_patches_dir}"/*.patch
   fi
 
-  echo "Pinned mt76 snapshot for MT3600BE WiFi stability:"
+  echo "Configured mt76 snapshot (${label}):"
   grep -E '^(PKG_SOURCE_DATE|PKG_SOURCE_VERSION|PKG_MIRROR_HASH):=' "${mt76_makefile}"
 }
 
@@ -155,7 +183,7 @@ sync_rootfs_overlay() {
 prepare_build_workspace() {
   prepare_build_tree
   cd "${BUILD_ROOT}"
-  pin_mt76_known_good_snapshot
+  configure_mt76_snapshot
   apply_feeds_profile
   sync_rootfs_overlay
   prepare_shared_cache_dirs
