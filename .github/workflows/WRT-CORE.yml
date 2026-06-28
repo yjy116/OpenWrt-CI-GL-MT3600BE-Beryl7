@@ -64,6 +64,10 @@ on:
         type: boolean
         default: false
 
+permissions:
+  contents: write
+  actions: read
+
 concurrency:
   group: ${{ inputs.wrt_config }}-${{ inputs.wrt_branch }}-${{ inputs.feeds_profile }}-${{ inputs.pin_mt76_known_good && 'mt76-known-good' || (inputs.mt76_source_version != '' && inputs.mt76_source_version || 'mt76-mainline') }}-${{ github.ref }}
   cancel-in-progress: true
@@ -73,6 +77,9 @@ jobs:
     name: Build / ${{ inputs.wrt_name }}
     runs-on: ubuntu-24.04
     timeout-minutes: 360
+    permissions:
+      contents: write
+      actions: read
     env:
       WRT_CONFIG: ${{ inputs.wrt_config }}
       WRT_NAME: ${{ inputs.wrt_name }}
@@ -244,7 +251,6 @@ jobs:
       - name: Publish GitHub release
         id: publish_release
         if: ${{ !inputs.test_only && inputs.publish_release }}
-        continue-on-error: true
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
@@ -257,9 +263,3 @@ jobs:
             --notes-file "${{ steps.release_meta.outputs.notes_file }}" \
             --target "${GITHUB_SHA}" \
             --prerelease
-
-      - name: Warn if GitHub release was not published
-        if: ${{ !inputs.test_only && inputs.publish_release && steps.publish_release.outcome == 'failure' }}
-        shell: bash
-        run: |
-          echo "::warning::GitHub release publishing failed. Firmware artifacts were already uploaded; check repository Actions workflow permissions or run with publish_release=false."
