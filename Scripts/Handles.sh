@@ -17,6 +17,36 @@ REPO_BRANCH="${REPO_BRANCH:-main}"
 FEEDS_PROFILE="${FEEDS_PROFILE:-immortalwrt-compatible}"
 RELEASE_TAG_PREFIX="${RELEASE_TAG_PREFIX:-mt3600be-openwrt}"
 TEST_ONLY="${TEST_ONLY:-0}"
+BUILD_STAMP="${BUILD_STAMP:-$(TZ=Asia/Shanghai date +'%y.%m.%d-%H.%M.%S')}"
+BUILD_LABEL="${BUILD_LABEL:-Beryl7-${BUILD_STAMP}}"
+
+artifact_build_suffix() {
+  printf '%s' "${BUILD_LABEL}" | tr '/ ' '--' | tr -cd '[:alnum:]._-'
+}
+
+copy_collected_artifact() {
+  local file="$1"
+  local base
+  local suffix
+  local target
+
+  base="$(basename "${file}")"
+  suffix="$(artifact_build_suffix)"
+
+  case "${base}" in
+    *.bin)
+      target="${ARTIFACT_DIR}/${base%.bin}-${suffix}.bin"
+      ;;
+    *.itb)
+      target="${ARTIFACT_DIR}/${base%.itb}-${suffix}.itb"
+      ;;
+    *)
+      target="${ARTIFACT_DIR}/${base}"
+      ;;
+  esac
+
+  cp -v "${file}" "${target}"
+}
 
 collect_artifacts() {
   local file
@@ -54,7 +84,7 @@ collect_artifacts() {
 
   for file in "${files[@]}"; do
     if [[ -f "${file}" ]]; then
-      cp -v "${file}" "${ARTIFACT_DIR}/"
+      copy_collected_artifact "${file}"
     fi
   done
 
@@ -104,10 +134,10 @@ prepare_release_metadata() {
 
   branch_slug="$(printf '%s' "${REPO_BRANCH}" | tr '/ ' '--' | tr -cd '[:alnum:]._-')"
   build_commit="$(git -C "${BUILD_ROOT}" rev-parse --short=12 HEAD)"
-  build_time="$(date -u +'%Y%m%d-%H%M%S')"
+  build_time="$(printf '%s' "${BUILD_STAMP}" | tr -cd '[:alnum:]._-')"
   kernel_version="$(detect_kernel_version)"
   tag="${RELEASE_TAG_PREFIX}-${branch_slug}-${build_time}-run${GITHUB_RUN_NUMBER:-local}"
-  title="${WRT_DEVICE_LABEL} OpenWrt ${branch_slug} ${build_time}"
+  title="${WRT_DEVICE_LABEL} OpenWrt ${branch_slug} ${BUILD_LABEL}"
   notes_file="${RUNNER_TEMP}/release-notes.md"
 
   {
@@ -121,6 +151,8 @@ prepare_release_metadata() {
     echo "- Branch: \`${REPO_BRANCH}\`"
     echo "- Feeds profile: \`${FEEDS_PROFILE}\`"
     echo "- Config: \`${WRT_CONFIG}\`"
+    echo "- Build label: \`${BUILD_LABEL}\`"
+    echo "- Build time: \`${BUILD_STAMP} Asia/Shanghai\`"
     echo "- Kernel: \`${kernel_version}\`"
     echo "- Commit: \`${build_commit}\`"
     if [[ -n "${GITHUB_REPOSITORY:-}" && -n "${GITHUB_RUN_ID:-}" ]]; then

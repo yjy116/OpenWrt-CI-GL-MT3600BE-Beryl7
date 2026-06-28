@@ -253,6 +253,46 @@ append_runtime_ccache_dir_to_config() {
   echo "CONFIG_CCACHE_DIR=\"${CCACHE_DIR}\"" >> .config
 }
 
+detect_openwrt_revision() {
+  local revision=""
+
+  if [[ -x ./scripts/getver.sh ]]; then
+    revision="$(./scripts/getver.sh 2>/dev/null || true)"
+  fi
+
+  if [[ -z "${revision}" ]]; then
+    revision="r0-$(git rev-parse --short=7 HEAD 2>/dev/null || printf unknown)"
+  fi
+
+  printf '%s' "${revision}"
+}
+
+append_build_version_to_config() {
+  local revision
+  local version_code
+
+  [[ -n "${BUILD_LABEL:-}" ]] || return
+
+  revision="$(detect_openwrt_revision)"
+  version_code="${revision} / ${BUILD_LABEL}"
+
+  sed -i \
+    -e '/^CONFIG_VERSIONOPT=/d' \
+    -e '/^CONFIG_VERSION_CODE=/d' \
+    -e '/^CONFIG_VERSION_FILENAMES=/d' \
+    -e '/^# CONFIG_VERSION_FILENAMES is not set$/d' \
+    -e '/^CONFIG_VERSION_CODE_FILENAMES=/d' \
+    -e '/^# CONFIG_VERSION_CODE_FILENAMES is not set$/d' \
+    .config
+
+  append_config_line_if_missing "CONFIG_VERSIONOPT=y"
+  append_config_line_if_missing "CONFIG_VERSION_CODE=\"${version_code}\""
+  # 中文：版本代码里含有用于 LuCI 展示的斜杠，固件文件名由 Handles.sh 统一追加时间后缀。
+  append_config_line_if_missing "# CONFIG_VERSION_FILENAMES is not set"
+  append_config_line_if_missing "# CONFIG_VERSION_CODE_FILENAMES is not set"
+  echo "OpenWrt version code: ${version_code}"
+}
+
 report_dropped_requested_packages() {
   local requested_file="${BUILD_ROOT}/tmp/requested-packages.txt"
   local final_file="${BUILD_ROOT}/tmp/final-packages.txt"
@@ -285,6 +325,7 @@ apply_config_fragments() {
   append_theme_packages_to_config
   append_auto_i18n_packages_to_config
   append_runtime_ccache_dir_to_config
+  append_build_version_to_config
 
   if [[ -n "${EXTRA_CONFIG_FILE:-}" && -f "${EXTRA_CONFIG_FILE}" ]]; then
     cat "${EXTRA_CONFIG_FILE}" >> .config

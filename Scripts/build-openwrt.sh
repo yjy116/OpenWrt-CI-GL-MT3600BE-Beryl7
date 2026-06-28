@@ -20,6 +20,8 @@ WRT_THEME="${WRT_THEME:-aurora}"
 JOBS="${JOBS:-$(nproc)}"
 TEST_ONLY="${TEST_ONLY:-0}"
 BUILD_VERBOSE="${BUILD_VERBOSE:-0}"
+BUILD_STAMP="${BUILD_STAMP:-$(TZ=Asia/Shanghai date +'%y.%m.%d-%H.%M.%S')}"
+BUILD_LABEL="${BUILD_LABEL:-Beryl7-${BUILD_STAMP}}"
 PIN_MT76_KNOWN_GOOD="${PIN_MT76_KNOWN_GOOD:-0}"
 MT76_KNOWN_GOOD_SOURCE_DATE="${MT76_KNOWN_GOOD_SOURCE_DATE:-2026-03-21}"
 MT76_KNOWN_GOOD_SOURCE_VERSION="${MT76_KNOWN_GOOD_SOURCE_VERSION:-018f60316d4dd6b4e741874eda40e2dfaa29df3b}"
@@ -180,12 +182,29 @@ sync_rootfs_overlay() {
   cp -a "${PROJECT_ROOT}/files/." "${BUILD_ROOT}/files/"
 }
 
+write_build_info_overlay() {
+  local info_dir="${BUILD_ROOT}/files/etc"
+  local info_file="${info_dir}/beryl7-build-info"
+
+  mkdir -p "${info_dir}"
+  # 中文：构建时间只在 CI/本次构建树里动态生成，避免把固定时间写死进仓库。
+  {
+    printf "BUILD_STAMP='%s'\n" "${BUILD_STAMP}"
+    printf "BUILD_LABEL='%s'\n" "${BUILD_LABEL}"
+    printf "BUILD_SOURCE='OpenWrt'\n"
+    printf "BUILD_BRANCH='%s'\n" "${REPO_BRANCH}"
+  } > "${info_file}"
+
+  echo "Build label: ${BUILD_LABEL}"
+}
+
 prepare_build_workspace() {
   prepare_build_tree
   cd "${BUILD_ROOT}"
   configure_mt76_snapshot
   apply_feeds_profile
   sync_rootfs_overlay
+  write_build_info_overlay
   prepare_shared_cache_dirs
 }
 

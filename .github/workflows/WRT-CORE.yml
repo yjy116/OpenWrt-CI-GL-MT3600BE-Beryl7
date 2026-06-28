@@ -144,6 +144,8 @@ jobs:
           ccache_dir="${cache_root}/ccache"
           build_root="${work_root}/openwrt-${WRT_CONFIG}"
           vendor_root="${work_root}/openwrt-vendor"
+          build_stamp="$(TZ=Asia/Shanghai date +'%y.%m.%d-%H.%M.%S')"
+          build_label="Beryl7-${build_stamp}"
 
           mkdir -p "${dl_dir}" "${ccache_dir}"
 
@@ -154,11 +156,14 @@ jobs:
             echo "CCACHE_DIR=${ccache_dir}"
             echo "BUILD_ROOT=${build_root}"
             echo "VENDOR_ROOT=${vendor_root}"
+            echo "BUILD_STAMP=${build_stamp}"
+            echo "BUILD_LABEL=${build_label}"
           } >> "${GITHUB_ENV}"
 
           {
             echo "dl_dir=${dl_dir}"
             echo "ccache_dir=${ccache_dir}"
+            echo "build_label=${build_label}"
           } >> "${GITHUB_OUTPUT}"
 
       - name: Restore download cache
@@ -222,7 +227,7 @@ jobs:
         if: ${{ always() }}
         uses: actions/upload-artifact@v4
         with:
-          name: ${{ inputs.wrt_config }}-${{ github.run_number }}
+          name: ${{ inputs.wrt_config }}-${{ github.run_number }}-${{ steps.workspace.outputs.build_label }}
           path: ${{ runner.temp }}/mt3600be-artifacts
           if-no-files-found: error
           retention-days: 14
