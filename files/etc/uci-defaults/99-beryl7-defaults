@@ -10,7 +10,7 @@ EOF
 
 setup_build_version_description() {
 	# 中文：构建时间由 CI 写入 /etc/beryl7-build-info；首次启动时追加到 LuCI 固件版本显示。
-	local release_file version_file build_label current_desc new_desc current_version
+	local release_file version_file os_release_file build_label current_desc new_desc current_version current_os_release new_os_release
 
 	[ -r /etc/beryl7-build-info ] || return 0
 	. /etc/beryl7-build-info
@@ -19,6 +19,7 @@ setup_build_version_description() {
 
 	release_file='/etc/openwrt_release'
 	version_file='/etc/openwrt_version'
+	os_release_file='/usr/lib/os-release'
 
 	if [ -r "${release_file}" ]; then
 		current_desc="$(
@@ -42,6 +43,33 @@ setup_build_version_description() {
 		*"${build_label}"*) ;;
 		*) printf '%s / %s\n' "${current_version}" "${build_label}" > "${version_file}" ;;
 		esac
+	fi
+
+	if [ -r "${os_release_file}" ]; then
+		current_os_release="$(
+			awk -F= '$1 == "OPENWRT_RELEASE" {
+				value = $2
+				sub(/^"/, "", value)
+				sub(/"$/, "", value)
+				print value
+			}' "${os_release_file}"
+		)"
+		if [ -n "${current_os_release}" ]; then
+			case "${current_os_release}" in
+			*"${build_label}"*) ;;
+			*)
+				new_os_release="${current_os_release} / ${build_label}"
+				awk -v release="${new_os_release}" '
+					/^OPENWRT_RELEASE=/ {
+						print "OPENWRT_RELEASE=\"" release "\""
+						next
+					}
+					{ print }
+				' "${os_release_file}" > /tmp/os-release.beryl7
+				mv /tmp/os-release.beryl7 "${os_release_file}"
+				;;
+			esac
+		fi
 	fi
 }
 
