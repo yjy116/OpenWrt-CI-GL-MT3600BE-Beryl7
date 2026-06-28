@@ -270,6 +270,23 @@ patch_luci_cpuusage_backend() {
 
 patch_luci_cpuusage_backend
 
+patch_luci_firmware_version_order() {
+	local luci_system_js original_marker patched_marker
+
+	luci_system_js='/www/luci-static/resources/view/status/include/10_system.js'
+	[ -f "${luci_system_js}" ] || return 0
+	grep -q 'firmwareversion' "${luci_system_js}" && return 0
+
+	original_marker="luciversion=luciversion.branch+' '+luciversion.revision;"
+	patched_marker="luciversion=luciversion.branch+' '+luciversion.revision;var firmwaredesc=(L.isObject(boardinfo.release)?boardinfo.release.description:''),firmwarelabel='',firmwarematch=firmwaredesc.match(/^(.*) [/] (Beryl7-[^/]+)$/);if(firmwarematch){firmwaredesc=firmwarematch[1];firmwarelabel=firmwarematch[2];}var firmwareversion=(firmwaredesc?firmwaredesc+' / ':'')+(luciversion||'');if(firmwarelabel)firmwareversion=firmwareversion+' / '+firmwarelabel;"
+
+	# 中文：LuCI 默认显示顺序是 OpenWrt release + LuCI；这里把 Beryl7 构建时间标签移到 LuCI 版本之后。
+	sed -i "s#${original_marker}#${patched_marker}#" "${luci_system_js}"
+	sed -i "s#_('Firmware Version'),(L.isObject(boardinfo.release)?boardinfo.release.description+' / ':'')+(luciversion||'')#_('Firmware Version'),firmwareversion#" "${luci_system_js}"
+}
+
+patch_luci_firmware_version_order
+
 setup_optional_services_disabled() {
 	# 中文：代理和 DDNS 插件保留配置入口，但默认开关关闭；需要时由用户在 LuCI 中手动启用。
 	local ddns_service
