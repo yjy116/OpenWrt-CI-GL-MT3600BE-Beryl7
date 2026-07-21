@@ -75,6 +75,37 @@ setup_build_version_description() {
 
 setup_build_version_description
 
+setup_mtk_wed_module_options() {
+	# 中文：WLAN 到 WAN 的 MTK PPE 硬件绑定需要 WED 在 mt7996e 加载前启用。
+	# 中文：这里做幂等修正，避免旧备份恢复后把 /etc/modules.conf 覆盖回默认值。
+	local modules_conf tmp_file
+
+	modules_conf='/etc/modules.conf'
+	tmp_file='/tmp/modules.conf.beryl7'
+
+	touch "${modules_conf}"
+	if grep -q '^options[[:space:]][[:space:]]*mt7996e[[:space:]]' "${modules_conf}"; then
+		awk '
+			/^options[[:space:]]+mt7996e[[:space:]]/ {
+				if (!done) {
+					print "options mt7996e wed_enable=Y sr_scene_detect=Y"
+					done = 1
+				}
+				next
+			}
+			{ print }
+		' "${modules_conf}" > "${tmp_file}" && mv "${tmp_file}" "${modules_conf}"
+	else
+		{
+			printf '\n'
+			printf '%s\n' '# 中文：WiFi 客户端进入 MTK PPE 硬件加速需要 WED；mt7996e 默认是 N。'
+			printf '%s\n' 'options mt7996e wed_enable=Y sr_scene_detect=Y'
+		} >> "${modules_conf}"
+	fi
+}
+
+setup_mtk_wed_module_options
+
 if ! uci -q get network.lan >/dev/null; then
 	uci -q set network.lan='interface'
 fi
