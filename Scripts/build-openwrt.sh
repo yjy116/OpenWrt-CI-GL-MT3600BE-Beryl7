@@ -5,6 +5,7 @@ set -euo pipefail
 PROJECT_ROOT="${PROJECT_ROOT:-$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)}"
 REPO_URL="${REPO_URL:-https://github.com/openwrt/openwrt.git}"
 REPO_BRANCH="${REPO_BRANCH:-main}"
+REPO_REF="${REPO_REF:-}"
 FEEDS_PROFILE="${FEEDS_PROFILE:-immortalwrt-compatible}"
 WRT_CONFIG="${WRT_CONFIG:-MT3600BE}"
 WORK_ROOT="${WORK_ROOT:-$HOME/work}"
@@ -54,13 +55,27 @@ run_git_with_retry() {
   return 1
 }
 
+checkout_requested_source_ref() {
+  if [[ -z "${REPO_REF}" ]]; then
+    git checkout -B "${REPO_BRANCH}" "origin/${REPO_BRANCH}"
+    echo "Using OpenWrt branch HEAD:"
+    git --no-pager log -1 --oneline
+    return
+  fi
+
+  # 中文：REPO_REF 用于临时固定到已验证源码提交，避免上游 main 回归影响日常固件。
+  echo "Using pinned OpenWrt source ref: ${REPO_REF}"
+  run_git_with_retry 5 git -c http.version=HTTP/1.1 fetch origin "${REPO_REF}" --depth 1
+  git checkout --detach FETCH_HEAD
+  git --no-pager log -1 --oneline
+}
+
 prepare_build_tree() {
   mkdir -p "${WORK_ROOT}"
 
   if [[ ! -d "${BUILD_ROOT}/.git" ]]; then
     rm -rf "${BUILD_ROOT}"
     run_git_with_retry 5 git -c http.version=HTTP/1.1 clone --depth 1 --single-branch --branch "${REPO_BRANCH}" "${REPO_URL}" "${BUILD_ROOT}"
-    return
   fi
 
   cd "${BUILD_ROOT}"
@@ -72,7 +87,7 @@ prepare_build_tree() {
   fi
 
   run_git_with_retry 5 git -c http.version=HTTP/1.1 fetch origin "${REPO_BRANCH}" --depth 1
-  git checkout -B "${REPO_BRANCH}" "origin/${REPO_BRANCH}"
+  checkout_requested_source_ref
 }
 
 configure_mt76_snapshot() {
@@ -193,6 +208,7 @@ write_build_info_overlay() {
     printf "BUILD_LABEL='%s'\n" "${BUILD_LABEL}"
     printf "BUILD_SOURCE='OpenWrt'\n"
     printf "BUILD_BRANCH='%s'\n" "${REPO_BRANCH}"
+    printf "BUILD_REF='%s'\n" "${REPO_REF:-floating}"
   } > "${info_file}"
 
   echo "Build label: ${BUILD_LABEL}"

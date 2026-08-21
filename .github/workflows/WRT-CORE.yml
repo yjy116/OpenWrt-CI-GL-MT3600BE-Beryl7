@@ -27,6 +27,10 @@ on:
         required: false
         type: string
         default: main
+      wrt_ref:
+        required: false
+        type: string
+        default: ''
       feeds_profile:
         required: false
         type: string
@@ -68,7 +72,7 @@ permissions:
   contents: write
 
 concurrency:
-  group: ${{ inputs.wrt_config }}-${{ inputs.wrt_branch }}-${{ inputs.feeds_profile }}-${{ inputs.pin_mt76_known_good && 'mt76-known-good' || (inputs.mt76_source_version != '' && inputs.mt76_source_version || 'mt76-mainline') }}-${{ github.ref }}
+  group: ${{ inputs.wrt_config }}-${{ inputs.wrt_branch }}-${{ inputs.wrt_ref != '' && inputs.wrt_ref || 'floating' }}-${{ inputs.feeds_profile }}-${{ inputs.pin_mt76_known_good && 'mt76-known-good' || (inputs.mt76_source_version != '' && inputs.mt76_source_version || 'mt76-mainline') }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -87,6 +91,7 @@ jobs:
       WRT_THEME: ${{ inputs.wrt_theme }}
       REPO_URL: ${{ inputs.wrt_repo }}
       REPO_BRANCH: ${{ inputs.wrt_branch }}
+      REPO_REF: ${{ inputs.wrt_ref }}
       FEEDS_PROFILE: ${{ inputs.feeds_profile }}
       PIN_MT76_KNOWN_GOOD: ${{ inputs.pin_mt76_known_good && '1' || '0' }}
       MT76_SOURCE_DATE: ${{ inputs.mt76_source_date }}
@@ -175,8 +180,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ steps.workspace.outputs.dl_dir }}
-          key: ${{ runner.os }}-dl-${{ inputs.wrt_branch }}-${{ github.sha }}
+          key: ${{ runner.os }}-dl-${{ inputs.wrt_branch }}-${{ inputs.wrt_ref != '' && inputs.wrt_ref || 'floating' }}-${{ github.sha }}
           restore-keys: |
+            ${{ runner.os }}-dl-${{ inputs.wrt_branch }}-${{ inputs.wrt_ref != '' && inputs.wrt_ref || 'floating' }}-
             ${{ runner.os }}-dl-${{ inputs.wrt_branch }}-
             ${{ runner.os }}-dl-
 
@@ -184,8 +190,9 @@ jobs:
         uses: actions/cache/restore@v4
         with:
           path: ${{ steps.workspace.outputs.ccache_dir }}
-          key: ${{ runner.os }}-ccache-${{ inputs.wrt_branch }}-${{ inputs.wrt_config }}-${{ github.sha }}
+          key: ${{ runner.os }}-ccache-${{ inputs.wrt_branch }}-${{ inputs.wrt_ref != '' && inputs.wrt_ref || 'floating' }}-${{ inputs.wrt_config }}-${{ github.sha }}
           restore-keys: |
+            ${{ runner.os }}-ccache-${{ inputs.wrt_branch }}-${{ inputs.wrt_ref != '' && inputs.wrt_ref || 'floating' }}-${{ inputs.wrt_config }}-
             ${{ runner.os }}-ccache-${{ inputs.wrt_branch }}-${{ inputs.wrt_config }}-
             ${{ runner.os }}-ccache-${{ inputs.wrt_branch }}-
 
@@ -210,14 +217,14 @@ jobs:
         uses: actions/cache/save@v4
         with:
           path: ${{ steps.workspace.outputs.dl_dir }}
-          key: ${{ runner.os }}-dl-${{ inputs.wrt_branch }}-${{ github.sha }}
+          key: ${{ runner.os }}-dl-${{ inputs.wrt_branch }}-${{ inputs.wrt_ref != '' && inputs.wrt_ref || 'floating' }}-${{ github.sha }}
 
       - name: Save ccache
         if: ${{ always() }}
         uses: actions/cache/save@v4
         with:
           path: ${{ steps.workspace.outputs.ccache_dir }}
-          key: ${{ runner.os }}-ccache-${{ inputs.wrt_branch }}-${{ inputs.wrt_config }}-${{ github.sha }}
+          key: ${{ runner.os }}-ccache-${{ inputs.wrt_branch }}-${{ inputs.wrt_ref != '' && inputs.wrt_ref || 'floating' }}-${{ inputs.wrt_config }}-${{ github.sha }}
 
       - name: Collect artifacts
         if: ${{ always() }}

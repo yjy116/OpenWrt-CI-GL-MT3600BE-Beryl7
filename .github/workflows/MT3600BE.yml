@@ -8,6 +8,11 @@ on:
         required: true
         default: main
         type: string
+      openwrt_ref:
+        description: OpenWrt source commit/tag to pin, clear it to follow the selected branch
+        required: false
+        default: ee6ef8d27ee0276d1d5405dcdafdb630266470ba
+        type: string
       feeds_profile:
         description: Feed profile to use
         required: true
@@ -77,6 +82,8 @@ jobs:
       wrt_device_dts: mt7987a-glinet-gl-mt3600be
       wrt_theme: aurora
       wrt_branch: ${{ inputs.openwrt_branch || 'main' }}
+      # 中文：push 自动构建固定到最近验证成功的 OpenWrt 源码提交；手动构建可清空 openwrt_ref 跟随分支最新。
+      wrt_ref: ${{ github.event_name == 'push' && 'ee6ef8d27ee0276d1d5405dcdafdb630266470ba' || inputs.openwrt_ref }}
       feeds_profile: ${{ inputs.feeds_profile || 'immortalwrt-compatible' }}
       pin_mt76_known_good: ${{ github.event_name == 'push' || inputs.pin_mt76_known_good }}
       mt76_source_date: ${{ inputs.mt76_source_date || '' }}

@@ -1,7 +1,7 @@
 name: Auto-Build
 
 run-name: >-
-  Auto build | branch=main | feeds=immortalwrt-compatible | actor=${{ github.actor }}
+  Auto build | branch=main | ref=ee6ef8d27ee0 | feeds=immortalwrt-compatible | actor=${{ github.actor }}
 
 on:
   schedule:
@@ -62,6 +62,8 @@ jobs:
       wrt_device_dts: mt7987a-glinet-gl-mt3600be
       wrt_theme: aurora
       wrt_branch: main
+      # 中文：定时构建使用最近验证成功的 OpenWrt 源码提交，避免上游 main 临时回归时自动产物中断。
+      wrt_ref: ee6ef8d27ee0276d1d5405dcdafdb630266470ba
       feeds_profile: immortalwrt-compatible
       pin_mt76_known_good: true
       cleanup_runner: true

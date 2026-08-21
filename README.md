@@ -7,9 +7,27 @@ OpenWrt 固件。
 
 - 源码仓库：`https://github.com/openwrt/openwrt.git`
 - 默认源码分支：`main`
+- 默认源码提交：`ee6ef8d27ee0276d1d5405dcdafdb630266470ba`
 - 目标平台：`mediatek/filogic`
 - 设备 profile：`glinet_gl-mt3600be`
 - 设备 DTS：`mt7987a-glinet-gl-mt3600be`
+
+## OpenWrt 源码固定策略
+
+`MT3600BE` 和 `Auto-Build` 默认固定到最近实测成功的 OpenWrt 源码提交：
+
+```text
+ee6ef8d27ee0276d1d5405dcdafdb630266470ba
+```
+
+原因是 OpenWrt `main` 会持续滚动更新。2026-08-21 的定时构建曾拉到较新的
+`main`，随后在 `python3 [host]` 编译 `Python-3.14.5` 的 curses 模块时失败；
+而同一份本仓库配置在上述提交上已经成功出过固件。因此这里先把“源码树”固定住，
+同时继续保留 `openwrt_branch=main`，便于 feeds、缓存和版本命名保持清晰。
+
+如果后续上游修复了该回归，手动运行 `MT3600BE` 时可以清空 `openwrt_ref` 输入框，
+让 CI 重新跟随 `main` 最新提交。确认稳定后，再把 `.github/workflows/MT3600BE.yml`
+和 `.github/workflows/Auto-Build.yml` 里的默认 `wrt_ref/openwrt_ref` 去掉即可。
 
 ## 为什么使用源码编译
 
