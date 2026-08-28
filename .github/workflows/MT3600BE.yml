@@ -9,9 +9,9 @@ on:
         default: main
         type: string
       openwrt_ref:
-        description: OpenWrt source commit/tag to pin, clear it to follow the selected branch
+        description: Optional OpenWrt source commit/tag to pin, leave empty to follow the selected branch
         required: false
-        default: ee6ef8d27ee0276d1d5405dcdafdb630266470ba
+        default: ''
         type: string
       feeds_profile:
         description: Feed profile to use
@@ -22,9 +22,9 @@ on:
           - immortalwrt-compatible
           - openwrt-official
       pin_mt76_known_good:
-        description: Build stable firmware with the #35 known-good mt76 snapshot
+        description: Use the #35 known-good mt76 snapshot if latest WiFi is unstable
         required: true
-        default: true
+        default: false
         type: boolean
       mt76_source_date:
         description: Custom mt76 source date for bisect builds, leave empty for mainline
@@ -82,10 +82,11 @@ jobs:
       wrt_device_dts: mt7987a-glinet-gl-mt3600be
       wrt_theme: aurora
       wrt_branch: ${{ inputs.openwrt_branch || 'main' }}
-      # 中文：push 自动构建固定到最近验证成功的 OpenWrt 源码提交；手动构建可清空 openwrt_ref 跟随分支最新。
-      wrt_ref: ${{ github.event_name == 'push' && 'ee6ef8d27ee0276d1d5405dcdafdb630266470ba' || inputs.openwrt_ref }}
+      # 中文：默认跟随 OpenWrt 分支最新；只有需要临时回退/二分上游问题时才手动填写 openwrt_ref。
+      wrt_ref: ${{ inputs.openwrt_ref || '' }}
       feeds_profile: ${{ inputs.feeds_profile || 'immortalwrt-compatible' }}
-      pin_mt76_known_good: ${{ github.event_name == 'push' || inputs.pin_mt76_known_good }}
+      # 中文：默认使用 OpenWrt 源码树内置的最新 mt76；WiFi 不稳定时手动勾选已验证快照。
+      pin_mt76_known_good: ${{ github.event_name == 'workflow_dispatch' && inputs.pin_mt76_known_good }}
       mt76_source_date: ${{ inputs.mt76_source_date || '' }}
       mt76_source_version: ${{ inputs.mt76_source_version || '' }}
       mt76_mirror_hash: ${{ inputs.mt76_mirror_hash || '' }}

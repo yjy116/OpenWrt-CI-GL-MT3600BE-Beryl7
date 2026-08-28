@@ -7,27 +7,26 @@ OpenWrt 固件。
 
 - 源码仓库：`https://github.com/openwrt/openwrt.git`
 - 默认源码分支：`main`
-- 默认源码提交：`ee6ef8d27ee0276d1d5405dcdafdb630266470ba`
+- 默认源码提交：跟随 `main` 最新提交
 - 目标平台：`mediatek/filogic`
 - 设备 profile：`glinet_gl-mt3600be`
 - 设备 DTS：`mt7987a-glinet-gl-mt3600be`
 
-## OpenWrt 源码固定策略
+## OpenWrt 源码与稳定回退策略
 
-`MT3600BE` 和 `Auto-Build` 默认固定到最近实测成功的 OpenWrt 源码提交：
+`MT3600BE` 和 `Auto-Build` 默认跟随 `openwrt/openwrt@main` 最新提交，不再固定到
+某一个历史源码版本。这样可以持续拿到上游对 GL-MT3600BE、Linux 内核、mt76
+无线驱动和基础软件包的更新。
 
-```text
-ee6ef8d27ee0276d1d5405dcdafdb630266470ba
-```
+如果某次 OpenWrt 主线回归导致编译失败或固件异常，手动运行 `MT3600BE` 时可以在
+`openwrt_ref` 输入框填写上一次确认稳定的 OpenWrt commit 或 tag。留空则继续跟随
+所选 `openwrt_branch` 的最新提交。
 
-原因是 OpenWrt `main` 会持续滚动更新。2026-08-21 的定时构建曾拉到较新的
-`main`，随后在 `python3 [host]` 编译 `Python-3.14.5` 的 curses 模块时失败；
-而同一份本仓库配置在上述提交上已经成功出过固件。因此这里先把“源码树”固定住，
-同时继续保留 `openwrt_branch=main`，便于 feeds、缓存和版本命名保持清晰。
+手动回退建议按故障范围选择：
 
-如果后续上游修复了该回归，手动运行 `MT3600BE` 时可以清空 `openwrt_ref` 输入框，
-让 CI 重新跟随 `main` 最新提交。确认稳定后，再把 `.github/workflows/MT3600BE.yml`
-和 `.github/workflows/Auto-Build.yml` 里的默认 `wrt_ref/openwrt_ref` 去掉即可。
+- 只有 WiFi 假死、无线连接异常：优先勾选 `Pin mt76 to the #35 known-good WiFi snapshot`。
+- OpenWrt 主线源码编译失败、内核或基础包整体回归：再填写 `openwrt_ref` 固定源码提交。
+- 想验证最新上游：保持 `openwrt_ref` 为空，并不要勾选 mt76 稳定快照。
 
 ## 为什么使用源码编译
 
@@ -48,14 +47,26 @@ ee6ef8d27ee0276d1d5405dcdafdb630266470ba
 
 ## MT3600BE WiFi / mt76 策略
 
-完整固件构建默认固定到 #35 已验证的 mt76 快照，避免主线 mt76 回归导致可刷固件
-出现 WiFi 连接卡死。`MT3600BE-TEST` 仍默认跟随 OpenWrt mainline 的 mt76 驱动，
-用于继续跟踪上游修复和定位具体坏点。
+完整固件构建默认使用 OpenWrt 源码树内置的 mt76 快照，方便继续验证上游 BE WiFi
+修复。2026-08-28 核对时，OpenWrt `main` 的 `package/kernel/mt76/Makefile`
+仍使用：
+
+```text
+PKG_SOURCE_DATE:=2026-07-01
+PKG_SOURCE_VERSION:=59676919ea408b0b13a9d23f2e2e1a1ab407fba1
+```
+
+同时，上游仍有未合入的 mt76 修复 PR 和未关闭问题需要观察：
+
+- `openwrt/openwrt#24810`：修复 AP interface bring-up 后的崩溃/内存破坏，当前仍为 open。
+- `openwrt/mt76#1097`：`mt7996e` 在 `2026.07.01~59676919` 后触发网络不可达，当前仍为 open。
+- `openwrt/mt76#1109`：`mt7996_mcu_rx_event` RCU stall 的一个明确原因已关闭修复。
 
 2026-06-28 实机日志确认：OpenWrt 主线 `r0-23e5161` 上连接 WiFi 后曾触发
 `mt7996e ... Message 00130022 timeout`，随后 `napi/phy0-0` 在
 `mt7996_mcu_rx_event -> mt7996_queue_rx_skb -> mt76_dma_rx_poll` 中发生 RCU stall。
-因此在上游修复前，日常可刷固件建议保持：
+因此如果最新固件刷入后仍出现 WiFi 假死、无法联网或内核卡死，建议重新手动运行
+`MT3600BE` 并勾选：
 
 ```text
 Pin mt76 to the #35 known-good WiFi snapshot
