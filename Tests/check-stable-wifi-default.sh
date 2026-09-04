@@ -7,6 +7,7 @@ manual_workflow="${project_root}/.github/workflows/MT3600BE.yml"
 test_workflow="${project_root}/.github/workflows/MT3600BE-TEST.yml"
 auto_workflow="${project_root}/.github/workflows/Auto-Build.yml"
 mt76_link_id_patch="${project_root}/Patches/mt76-known-good/004-pass-link-id-to-beacon-template-helpers.patch"
+mt76_action_frame_patch="${project_root}/Patches/mt76-known-good/005-update-action-frame-api.patch"
 
 # 中文：日常完整构建必须默认使用已验证 mt76；手动取消勾选仍可测试主线驱动。
 grep -A4 '^      pin_mt76_known_good:' "${manual_workflow}" | grep -qx '        default: true'
@@ -19,5 +20,14 @@ test -f "${mt76_link_id_patch}"
 grep -Fq 'ieee80211_get_fils_discovery_tmpl(hw, vif,' "${mt76_link_id_patch}"
 grep -Fq 'ieee80211_get_unsol_bcast_probe_resp_tmpl(hw, vif,' "${mt76_link_id_patch}"
 test "$(grep -Fc 'link_conf->link_id);' "${mt76_link_id_patch}")" -eq 2
+
+# 中文：完整回移植 action frame API 变更，避免公共 connac 代码随后再次编译失败。
+test -f "${mt76_action_frame_patch}"
+grep -Fq 'd49721c205c457bcff30ad8609663e9c965ff05d' "${mt76_action_frame_patch}"
+grep -Fq -- '--- a/mt76_connac_mac.c' "${mt76_action_frame_patch}"
+grep -Fq -- '--- a/mt7925/mac.c' "${mt76_action_frame_patch}"
+grep -Fq -- '--- a/mt7996/mac.c' "${mt76_action_frame_patch}"
+grep -Fq 'IEEE80211_MIN_ACTION_SIZE(action_code)' "${mt76_action_frame_patch}"
+grep -Fq 'mgmt->u.action.action_code == WLAN_ACTION_ADDBA_REQ' "${mt76_action_frame_patch}"
 
 printf '%s\n' '稳定 WiFi 默认策略检查通过。'
