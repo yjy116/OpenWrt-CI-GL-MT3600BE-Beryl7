@@ -104,6 +104,13 @@ jobs:
       - name: Checkout helper repository
         uses: actions/checkout@v4
 
+      - name: 校验日常构建默认策略
+        shell: bash
+        run: |
+          set -euo pipefail
+          bash Tests/check-stable-wifi-default.sh
+          bash Tests/check-default-lan-ip.sh
+
       - name: Show runner information
         shell: bash
         run: |

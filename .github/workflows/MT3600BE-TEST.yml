@@ -17,9 +17,9 @@ on:
           - immortalwrt-compatible
           - openwrt-official
       pin_mt76_known_good:
-        description: Validate the #35 known-good mt76 snapshot instead of mainline
+        description: 默认验证 #35 稳定版 mt76；取消勾选可验证 OpenWrt 主线驱动
         required: true
-        default: false
+        default: true
         type: boolean
       mt76_source_date:
         description: Custom mt76 source date for bisect validation, leave empty for mainline

@@ -15,8 +15,8 @@ OpenWrt 固件。
 ## OpenWrt 源码与稳定回退策略
 
 `MT3600BE` 和 `Auto-Build` 默认跟随 `openwrt/openwrt@main` 最新提交，不再固定到
-某一个历史源码版本。这样可以持续拿到上游对 GL-MT3600BE、Linux 内核、mt76
-无线驱动和基础软件包的更新。
+某一个历史源码版本。这样可以持续拿到上游对 GL-MT3600BE、Linux 内核和基础
+软件包的更新；无线驱动则默认使用实机验证过的 mt76 稳定快照。
 
 如果某次 OpenWrt 主线回归导致编译失败或固件异常，手动运行 `MT3600BE` 时可以在
 `openwrt_ref` 输入框填写上一次确认稳定的 OpenWrt commit 或 tag。留空则继续跟随
@@ -24,9 +24,9 @@ OpenWrt 固件。
 
 手动回退建议按故障范围选择：
 
-- 只有 WiFi 假死、无线连接异常：优先勾选 `Pin mt76 to the #35 known-good WiFi snapshot`。
+- 日常刷机：保持 `默认使用 #35 稳定版 mt76` 为勾选状态。
 - OpenWrt 主线源码编译失败、内核或基础包整体回归：再填写 `openwrt_ref` 固定源码提交。
-- 想验证最新上游：保持 `openwrt_ref` 为空，并不要勾选 mt76 稳定快照。
+- 想验证最新上游 WiFi 驱动：保持 `openwrt_ref` 为空，并取消勾选 mt76 稳定快照。
 
 ## 为什么使用源码编译
 
@@ -47,29 +47,37 @@ OpenWrt 固件。
 
 ## MT3600BE WiFi / mt76 策略
 
-完整固件构建默认使用 OpenWrt 源码树内置的 mt76 快照，方便继续验证上游 BE WiFi
-修复。2026-08-28 核对时，OpenWrt `main` 的 `package/kernel/mt76/Makefile`
-仍使用：
+完整固件构建默认固定到 #35 已验证的 mt76 快照，避免主线 mt76 回归导致可刷固件
+出现 WiFi 连接后假死。OpenWrt 主线源码本身仍继续更新，只有无线驱动包使用稳定
+快照。2026-09-04 核对时，OpenWrt `main` 的 `package/kernel/mt76/Makefile`
+已更新为：
 
 ```text
-PKG_SOURCE_DATE:=2026-07-01
-PKG_SOURCE_VERSION:=59676919ea408b0b13a9d23f2e2e1a1ab407fba1
+PKG_SOURCE_DATE:=2026-09-01
+PKG_SOURCE_VERSION:=be5ce7910521492d4a2e4ce7ee3843680a46c047
 ```
 
 同时，上游仍有未合入的 mt76 修复 PR 和未关闭问题需要观察：
 
-- `openwrt/openwrt#24810`：修复 AP interface bring-up 后的崩溃/内存破坏，当前仍为 open。
+- `openwrt/openwrt#24810`：修复 AP interface bring-up 后的崩溃/内存破坏，当前仍为 blocked、未合并。
 - `openwrt/mt76#1097`：`mt7996e` 在 `2026.07.01~59676919` 后触发网络不可达，当前仍为 open。
+- `openwrt/mt76#1101`：2.4 GHz IoT 客户端触发静默数据面失效，当前仍为 open。
 - `openwrt/mt76#1109`：`mt7996_mcu_rx_event` RCU stall 的一个明确原因已关闭修复。
+
+`2026-09-01 / be5ce791...` 已包含 PS-sync 无限循环、TX DMA 映射泄漏、越界访问、
+连接监控及 WED 状态清理等多项 `mt7996` 修复，适合继续手动验证。但最新源码中
+`mt76_wcid_cleanup()` 的 `idr_destroy()` 仍位于状态锁之外，对应的竞态补丁尚未合入；
+在 MT3600BE 实机长时间验证通过前，不把它作为日常固件默认驱动。
 
 2026-06-28 实机日志确认：OpenWrt 主线 `r0-23e5161` 上连接 WiFi 后曾触发
 `mt7996e ... Message 00130022 timeout`，随后 `napi/phy0-0` 在
 `mt7996_mcu_rx_event -> mt7996_queue_rx_skb -> mt76_dma_rx_poll` 中发生 RCU stall。
-因此如果最新固件刷入后仍出现 WiFi 假死、无法联网或内核卡死，建议重新手动运行
-`MT3600BE` 并勾选：
+最近自动构建日志已经确认曾使用 `2026-07-01 / 59676919...` 主线快照，实机刷入后
+很快出现 WiFi 假死。上游虽然继续更新，但相关崩溃修复尚未全部合入，因此日常
+构建默认保持勾选：
 
 ```text
-Pin mt76 to the #35 known-good WiFi snapshot
+默认使用 #35 稳定版 mt76；取消勾选可测试 OpenWrt 主线 WiFi 驱动
 ```
 
 该兜底模式会把 mt76 固定到 #35 已验证快照：
@@ -81,7 +89,8 @@ PKG_MIRROR_HASH:=54a8125453a6fe04c89cf5335bdf0ea16c409361e1e5a79fb339d67cee26df0
 ```
 
 它还会同步恢复旧 mt76 在 Linux 6.18 下需要的兼容补丁。这样无需回退整个
-OpenWrt 主线，只回退无线驱动包。
+OpenWrt 主线，只回退无线驱动包。`push` 和 `Auto-Build` 没有交互输入，因此也默认
+使用该稳定快照；需要验证最新驱动时，请手动运行 `MT3600BE` 并取消勾选。
 
 定位 mt76 具体坏点时，可以手动填写：
 
@@ -131,6 +140,10 @@ Config/MT3600BE.kernel.txt
 `CONFIG_PACKAGE_*` 启用时，构建脚本才会拉取 vendor 包。
 
 ## 刷机说明
+
+新刷机或恢复出厂后的默认管理地址是 `192.168.18.1`。该设置由首次启动脚本写入；
+如果升级时保留了旧配置，现有 LAN 地址不会被强制覆盖。需要应用新默认地址时，使用
+`sysupgrade -n` 干净升级，或刷机后恢复出厂设置。
 
 不要把 WiFi 密码、VPN key、Tailscale auth key、DDNS token 或其它设备密钥提交到
 这个公开仓库。

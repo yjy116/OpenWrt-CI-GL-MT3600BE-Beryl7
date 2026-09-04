@@ -22,9 +22,9 @@ on:
           - immortalwrt-compatible
           - openwrt-official
       pin_mt76_known_good:
-        description: Use the #35 known-good mt76 snapshot if latest WiFi is unstable
+        description: 默认使用 #35 稳定版 mt76；取消勾选可测试 OpenWrt 主线 WiFi 驱动
         required: true
-        default: false
+        default: true
         type: boolean
       mt76_source_date:
         description: Custom mt76 source date for bisect builds, leave empty for mainline
@@ -85,8 +85,8 @@ jobs:
       # 中文：默认跟随 OpenWrt 分支最新；只有需要临时回退/二分上游问题时才手动填写 openwrt_ref。
       wrt_ref: ${{ inputs.openwrt_ref || '' }}
       feeds_profile: ${{ inputs.feeds_profile || 'immortalwrt-compatible' }}
-      # 中文：默认使用 OpenWrt 源码树内置的最新 mt76；WiFi 不稳定时手动勾选已验证快照。
-      pin_mt76_known_good: ${{ github.event_name == 'workflow_dispatch' && inputs.pin_mt76_known_good }}
+      # 中文：手动构建服从勾选项；push 自动构建使用已验证 mt76，避免发布无线易假死的日常固件。
+      pin_mt76_known_good: ${{ github.event_name == 'workflow_dispatch' && inputs.pin_mt76_known_good || github.event_name == 'push' }}
       mt76_source_date: ${{ inputs.mt76_source_date || '' }}
       mt76_source_version: ${{ inputs.mt76_source_version || '' }}
       mt76_mirror_hash: ${{ inputs.mt76_mirror_hash || '' }}

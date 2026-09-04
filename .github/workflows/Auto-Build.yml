@@ -63,7 +63,7 @@ jobs:
       wrt_theme: aurora
       wrt_branch: main
       feeds_profile: immortalwrt-compatible
-      # 中文：定时构建默认追随 OpenWrt 主线 mt76，用来观察上游 WiFi 修复进展。
-      pin_mt76_known_good: false
+      # 中文：定时发布供日常刷机使用，默认固定已验证 mt76；OpenWrt 其余源码仍跟随 main。
+      pin_mt76_known_good: true
       cleanup_runner: true
       publish_release: true
