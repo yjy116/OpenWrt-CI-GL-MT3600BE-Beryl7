@@ -1,0 +1,35 @@
+From: OpenWrt CI compatibility backport
+Date: Fri, 4 Sep 2026 22:55:00 +0800
+Subject: [PATCH] wifi: mt76: pass link ID to beacon template helpers
+
+Linux 6.18 mac80211 requires callers to identify the link when fetching
+FILS discovery and unsolicited broadcast probe response templates. Backport
+the two upstream mt7996 call-site updates so the known-good mt76 snapshot can
+continue to build against the current OpenWrt main branch.
+
+Upstream commits:
+- 254a3442b3ad (wifi: mac80211: fetch FILS discovery template by link ID)
+- 67c5f7ae2511 (wifi: mac80211: fetch unsolicited probe response template by link ID)
+
+---
+ mt7996/mcu.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+--- a/mt7996/mcu.c
++++ b/mt7996/mcu.c
+@@ -3204,11 +3204,13 @@ int mt7996_mcu_beacon_inband_discov(struct mt7996_dev *dev,
+ 	if (changed & BSS_CHANGED_FILS_DISCOVERY &&
+ 	    link_conf->fils_discovery.max_interval) {
+ 		interval = link_conf->fils_discovery.max_interval;
+-		skb = ieee80211_get_fils_discovery_tmpl(hw, vif);
++		skb = ieee80211_get_fils_discovery_tmpl(hw, vif,
++							link_conf->link_id);
+ 	} else if (changed & BSS_CHANGED_UNSOL_BCAST_PROBE_RESP &&
+ 		   link_conf->unsol_bcast_probe_resp_interval) {
+ 		interval = link_conf->unsol_bcast_probe_resp_interval;
+-		skb = ieee80211_get_unsol_bcast_probe_resp_tmpl(hw, vif);
++		skb = ieee80211_get_unsol_bcast_probe_resp_tmpl(hw, vif,
++								link_conf->link_id);
+ 	}
+ 
+ 	if (!skb) {
