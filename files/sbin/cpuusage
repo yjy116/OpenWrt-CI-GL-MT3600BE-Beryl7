@@ -1,7 +1,9 @@
 #!/bin/sh
 
 # 中文：为 LuCI 系统概览提供 CPU、连接跟踪容量和流量加速状态。
-# 中文：SW OFFLOAD 是 Linux flowtable 软件快路径；CT HW 是 conntrack 的 [HW_OFFLOAD] 标记；PPE-BND 是 MTK PPE 表里实际绑定的硬件流。
+# 中文：Software Flows 是 Linux flowtable 软件快路径；Hardware Flows 是 conntrack 的硬件卸载标记；PPE Bound 是 MTK PPE 表里实际绑定的硬件流。
+
+PPE_DEBUGFS_ROOT="${PPE_DEBUGFS_ROOT:-/sys/kernel/debug}"
 
 get_cpu_usage() {
 	top -bn1 2>/dev/null | awk '
@@ -90,17 +92,37 @@ count_ppe_bnd_file() {
 }
 
 count_ppe_bnd_entries() {
-	local counts total
+	local bind_counts counts ppe_file total
 
-	counts="$(count_ppe_bnd_file /sys/kernel/debug/ppe*/bind)"
-	set -- ${counts}
-	total="${4:-0}"
-	if [ "${total}" != "0" ]; then
-		printf '%s' "${counts}"
-		return
+	bind_counts=''
+	set --
+	for ppe_file in "${PPE_DEBUGFS_ROOT}"/ppe*/bind; do
+		[ -r "${ppe_file}" ] || continue
+		set -- "$@" "${ppe_file}"
+	done
+	if [ "$#" -gt 0 ]; then
+		bind_counts="$(count_ppe_bnd_file "$@")"
+		set -- ${bind_counts}
+		total="${4:-0}"
+		if [ "${total}" != "0" ]; then
+			printf '%s' "${bind_counts}"
+			return 0
+		fi
 	fi
 
-	count_ppe_bnd_file /sys/kernel/debug/ppe*/entries
+	set --
+	for ppe_file in "${PPE_DEBUGFS_ROOT}"/ppe*/entries; do
+		[ -r "${ppe_file}" ] || continue
+		set -- "$@" "${ppe_file}"
+	done
+	if [ "$#" -gt 0 ]; then
+		counts="$(count_ppe_bnd_file "$@")"
+		printf '%s' "${counts}"
+		return 0
+	fi
+
+	[ -n "${bind_counts}" ] || return 1
+	printf '%s' "${bind_counts}"
 }
 
 get_hfo_state() {
@@ -111,12 +133,12 @@ get_hfo_state() {
 
 	if [ "${flow}" = "1" ] && [ "${hw}" = "1" ]; then
 		if nft list ruleset 2>/dev/null | grep -q 'flags offload'; then
-			printf 'on'
+			printf 'On'
 			return
 		fi
 	fi
 
-	printf 'off'
+	printf 'Off'
 }
 
 format_total() {
@@ -126,8 +148,36 @@ format_total() {
 
 format_counts() {
 	set -- $1
-	printf 'tcp %s udp %s other %s total %s' "${1:-0}" "${2:-0}" "${3:-0}" "${4:-0}"
+	printf 'TCP %s, UDP %s, Other %s, Total %s' "${1:-0}" "${2:-0}" "${3:-0}" "${4:-0}"
 }
+
+format_ppe_state() {
+	local counts="${1:-}"
+
+	if [ -z "${counts}" ]; then
+		printf 'Unavailable'
+		return
+	fi
+
+	set -- ${counts}
+	printf 'Ready (%s Bound)' "${4:-0}"
+}
+
+get_ppe_state() {
+	local counts
+
+	if counts="$(count_ppe_bnd_entries)"; then
+		format_ppe_state "${counts}"
+		return
+	fi
+
+	format_ppe_state ''
+}
+
+if [ "${1:-}" = "--ppe-status" ]; then
+	get_ppe_state
+	exit 0
+fi
 
 cpu="$(get_cpu_usage)"
 [ -n "${cpu}" ] || cpu="0"
@@ -135,22 +185,22 @@ conntrack="$(get_conntrack_usage)"
 hfo="$(get_hfo_state)"
 sw_counts="$(count_conntrack_marker sw)"
 ct_hw_counts="$(count_conntrack_marker hw)"
-ppe_bnd_counts="$(count_ppe_bnd_entries)"
+ppe_state="$(get_ppe_state)"
 
 if [ "${CPUUSAGE_DETAIL:-0}" = "1" ]; then
-	printf '%s%% | CT %s | HFO %s | SW %s | CT-HW %s | PPE %s' \
+	printf 'CPU %s%% | Connections %s | HW Offload %s | Software Flows %s | Hardware Flows %s | PPE %s' \
 		"${cpu}" \
 		"${conntrack}" \
 		"${hfo}" \
 		"$(format_counts "${sw_counts}")" \
 		"$(format_counts "${ct_hw_counts}")" \
-		"$(format_counts "${ppe_bnd_counts}")"
+		"${ppe_state}"
 else
-	printf '%s%% | CT %s | HFO %s | SW %s | CT-HW %s | PPE %s' \
+	printf 'CPU %s%% | Connections %s | HW Offload %s | Software Flows %s | Hardware Flows %s | PPE %s' \
 		"${cpu}" \
 		"${conntrack}" \
 		"${hfo}" \
 		"$(format_total "${sw_counts}")" \
 		"$(format_total "${ct_hw_counts}")" \
-		"$(format_total "${ppe_bnd_counts}")"
+		"${ppe_state}"
 fi

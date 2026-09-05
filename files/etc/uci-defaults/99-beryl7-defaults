@@ -270,6 +270,12 @@ patch_luci_cpuusage_backend() {
 
 patch_luci_cpuusage_backend
 
+# 中文：复用 LuCI 已有翻译词条，使标题在中英文界面中自动切换。
+luci_system_js='/www/luci-static/resources/view/status/include/10_system.js'
+if [ -f "${luci_system_js}" ] && ! grep -Fq "_('CPU usage (%)') + ' / ' + _('Hardware flow offloading')" "${luci_system_js}"; then
+	sed -i "s|_('CPU usage (%)')|_('CPU usage (%)') + ' / ' + _('Hardware flow offloading')|g" "${luci_system_js}"
+fi
+
 patch_luci_firmware_version_order() {
 	local luci_system_js original_marker patched_marker
 

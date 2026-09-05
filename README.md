@@ -103,6 +103,22 @@ OpenWrt 主线，只回退无线驱动包。`push` 和 `Auto-Build` 没有交互
 可以留空，构建脚本会对自定义 commit 使用 `skip`，适合临时二分测试。较早的 mt76
 commit 如果尚未包含 Linux 6.18 兼容改动，需要打开兼容补丁开关。
 
+## MTK PPE 硬件流量卸载状态
+
+固件默认启用防火墙软件流量卸载和 MTK PPE 硬件流量卸载，并保留
+`kmod-nft-offload`。LuCI 系统概览会显示 CPU、连接跟踪和流量卸载状态：
+
+- `HW Offload On`：UCI 开关已启用，nftables 硬件 flowtable 规则已经生成。
+- `Software Flows`：当前进入 Linux 软件 flowtable 的连接数。
+- `Hardware Flows`：conntrack 中带硬件卸载标记的连接数。
+- `PPE Ready (0 Bound)`：MTK PPE 调试接口已就绪，但刷新页面时没有绑定中的转发流。
+- `PPE Unavailable`：系统无法读取 PPE 调试接口，需要继续检查驱动或 debugfs。
+
+PPE 只处理符合条件的路由转发流量，访问路由器自身的 LuCI 页面不会产生 PPE 命中。
+验证时应让有线 LAN 客户端持续访问 WAN，再刷新系统概览。为避免重新引入此前的
+WiFi 假死问题，本项目不强制启用 mt7996 WED，因此 WiFi 客户端流量不保证显示为
+PPE 绑定流。
+
 ## Workflows
 
 - `MT3600BE-TEST`：快速验证 feeds、第三方包和最终 `.config`。
