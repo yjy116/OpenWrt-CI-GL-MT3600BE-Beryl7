@@ -124,6 +124,9 @@ PPE 绑定流。
 - `Auto-Build`：定时完整编译。
 - `Clear-Cache`：手动清理 GitHub Actions cache。
 
+工作流使用默认运行于 Node.js 24 的官方 `checkout`、`cache` 和
+`upload-artifact` Action，避免 Node.js 20 弃用告警。
+
 推荐流程：
 
 1. 先运行 `MT3600BE-TEST`。

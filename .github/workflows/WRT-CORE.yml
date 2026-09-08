@@ -102,12 +102,13 @@ jobs:
 
     steps:
       - name: Checkout helper repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: 校验日常构建默认策略
         shell: bash
         run: |
           set -euo pipefail
+          bash Tests/check-node24-actions.sh
           bash Tests/check-stable-wifi-default.sh
           bash Tests/check-default-lan-ip.sh
 
@@ -184,7 +185,7 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
       - name: Restore download cache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ${{ steps.workspace.outputs.dl_dir }}
           key: ${{ runner.os }}-dl-${{ inputs.wrt_branch }}-${{ inputs.wrt_ref != '' && inputs.wrt_ref || 'floating' }}-${{ github.sha }}
@@ -194,7 +195,7 @@ jobs:
             ${{ runner.os }}-dl-
 
       - name: Restore ccache
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v5
         with:
           path: ${{ steps.workspace.outputs.ccache_dir }}
           key: ${{ runner.os }}-ccache-${{ inputs.wrt_branch }}-${{ inputs.wrt_ref != '' && inputs.wrt_ref || 'floating' }}-${{ inputs.wrt_config }}-${{ github.sha }}
@@ -221,14 +222,14 @@ jobs:
 
       - name: Save download cache
         if: ${{ always() }}
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: ${{ steps.workspace.outputs.dl_dir }}
           key: ${{ runner.os }}-dl-${{ inputs.wrt_branch }}-${{ inputs.wrt_ref != '' && inputs.wrt_ref || 'floating' }}-${{ github.sha }}
 
       - name: Save ccache
         if: ${{ always() }}
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v5
         with:
           path: ${{ steps.workspace.outputs.ccache_dir }}
           key: ${{ runner.os }}-ccache-${{ inputs.wrt_branch }}-${{ inputs.wrt_ref != '' && inputs.wrt_ref || 'floating' }}-${{ inputs.wrt_config }}-${{ github.sha }}
@@ -244,7 +245,7 @@ jobs:
 
       - name: Upload artifacts
         if: ${{ always() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ${{ inputs.wrt_config }}-${{ github.run_number }}-${{ steps.workspace.outputs.build_label }}
           path: ${{ runner.temp }}/mt3600be-artifacts
