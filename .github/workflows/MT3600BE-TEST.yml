@@ -4,45 +4,17 @@ on:
   workflow_dispatch:
     inputs:
       openwrt_branch:
-        description: OpenWrt source branch to validate
+        description: "OpenWrt 源码分支（通常保持 main）"
         required: true
         default: main
         type: string
-      feeds_profile:
-        description: Feed profile to use
-        required: true
-        default: immortalwrt-compatible
-        type: choice
-        options:
-          - immortalwrt-compatible
-          - openwrt-official
+      openwrt_ref:
+        description: "固定 OpenWrt 源码提交或标签（留空则跟随上述分支最新版本）"
+        required: false
+        default: ''
+        type: string
       pin_mt76_known_good:
-        description: 默认验证 #35 稳定版 mt76；取消勾选可验证 OpenWrt 主线驱动
-        required: true
-        default: true
-        type: boolean
-      mt76_source_date:
-        description: Custom mt76 source date for bisect validation, leave empty for mainline
-        required: false
-        default: ''
-        type: string
-      mt76_source_version:
-        description: Custom mt76 commit for bisect validation, leave empty for mainline
-        required: false
-        default: ''
-        type: string
-      mt76_mirror_hash:
-        description: Custom mt76 mirror hash, leave empty to use skip for custom commits
-        required: false
-        default: ''
-        type: string
-      mt76_apply_known_good_patches:
-        description: Apply old mt76 Linux 6.18 compatibility patches for early bisect commits
-        required: true
-        default: false
-        type: boolean
-      cleanup_runner:
-        description: Free runner disk space before validation
+        description: "使用已验证的稳定版 mt76 WiFi 驱动（推荐；取消勾选则使用 OpenWrt 主线驱动）"
         required: true
         default: true
         type: boolean
@@ -60,12 +32,9 @@ jobs:
       wrt_device_dts: mt7987a-glinet-gl-mt3600be
       wrt_theme: aurora
       wrt_branch: ${{ inputs.openwrt_branch }}
-      feeds_profile: ${{ inputs.feeds_profile }}
+      wrt_ref: ${{ inputs.openwrt_ref }}
+      feeds_profile: immortalwrt-compatible
       pin_mt76_known_good: ${{ inputs.pin_mt76_known_good }}
-      mt76_source_date: ${{ inputs.mt76_source_date }}
-      mt76_source_version: ${{ inputs.mt76_source_version }}
-      mt76_mirror_hash: ${{ inputs.mt76_mirror_hash }}
-      mt76_apply_known_good_patches: ${{ inputs.mt76_apply_known_good_patches }}
-      cleanup_runner: ${{ inputs.cleanup_runner }}
+      cleanup_runner: true
       publish_release: false
       test_only: true

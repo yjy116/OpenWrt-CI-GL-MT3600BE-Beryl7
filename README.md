@@ -28,6 +28,15 @@ OpenWrt 固件。
 - OpenWrt 主线源码编译失败、内核或基础包整体回归：再填写 `openwrt_ref` 固定源码提交。
 - 想验证最新上游 WiFi 驱动：保持 `openwrt_ref` 为空，并取消勾选 mt76 稳定快照。
 
+手动运行页面只保留以下 3 个必要选项：
+
+- `OpenWrt 源码分支`：通常保持 `main`，用于持续跟随 OpenWrt 主线。
+- `固定 OpenWrt 源码提交或标签`：留空表示使用分支最新版本，填写 commit 或 tag 表示临时回退。
+- `使用已验证的稳定版 mt76 WiFi 驱动`：蓝色方框内有勾表示启用稳定驱动，也是日常刷机的推荐设置；取消勾选才会改用 OpenWrt 主线 mt76。
+
+兼容 feeds、Runner 空间清理和 Release 发布策略已经固定在工作流内部。完整构建会自动
+清理空间并发布预发行版；只想检查配置时使用 `MT3600BE-TEST`，它不会发布固件。
+
 ## 为什么使用源码编译
 
 当前插件集合来自旧的 ImmortalWrt CI 项目，其中包含 `daed`、BPF/BTF 内核选项、
@@ -91,17 +100,6 @@ PKG_MIRROR_HASH:=54a8125453a6fe04c89cf5335bdf0ea16c409361e1e5a79fb339d67cee26df0
 它还会同步恢复旧 mt76 在 Linux 6.18 下需要的兼容补丁。这样无需回退整个
 OpenWrt 主线，只回退无线驱动包。`push` 和 `Auto-Build` 没有交互输入，因此也默认
 使用该稳定快照；需要验证最新驱动时，请手动运行 `MT3600BE` 并取消勾选。
-
-定位 mt76 具体坏点时，可以手动填写：
-
-- `Custom mt76 source date`
-- `Custom mt76 commit`
-- `Custom mt76 mirror hash`
-- `Apply old mt76 Linux 6.18 compatibility patches for early bisect commits`
-
-其中 `Custom mt76 commit` 用于测试指定 mt76 commit；`Custom mt76 mirror hash`
-可以留空，构建脚本会对自定义 commit 使用 `skip`，适合临时二分测试。较早的 mt76
-commit 如果尚未包含 Linux 6.18 兼容改动，需要打开兼容补丁开关。
 
 ## MTK PPE 硬件流量卸载状态
 
