@@ -154,8 +154,13 @@ Config/MT3600BE.kernel.txt
 ```
 
 DAED 使用维护中的 `kenzok8/openwrt-daede` 源，构建其带哈希校验的冻结源码包和
-配套 `luci-app-daede` 中文管理页。配置明确选择内核集成 BTF，不依赖额外的
-`vmlinux-btf` 包；刷机后入口位于“服务 → daede”，服务仍默认关闭。
+配套 `luci-app-daede` 中文管理页。`daed` 本身已经包含 `dae-core`、`dae-wing`、API
+与 Web 面板；项目也从同一维护源构建独立 `dae`。两者使用同一份固定的性能核心
+与官方上游核心提交，均选择内核集成 BTF，不依赖额外的 `vmlinux-btf` 包。
+
+`luci-app-daede` 统一管理两种后端，默认选中 `daed`。切换时会先停止当前后端，启动
+前也会检查另一后端是否仍在运行，避免两者同时接管同一套 eBPF/cgroup 流量。刷机后
+入口位于“服务 → daede”；`dae` 与 `daed` 初始均保持关闭，由用户选择后手动启动。
 
 第三方包通过 `Config/GENERAL.txt` 中的 `@vendor` 注释声明。只有对应
 `CONFIG_PACKAGE_*` 启用时，构建脚本才会拉取 vendor 包。

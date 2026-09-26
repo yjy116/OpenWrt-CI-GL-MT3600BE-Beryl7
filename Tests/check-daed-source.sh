@@ -18,7 +18,9 @@ require_line() {
   fi
 }
 
-require_line '# @vendor luci-app-daede|https://github.com/kenzok8/openwrt-daede.git|main|daed:package/daed;luci-app-daede:package/luci-app-daede|daede-modern' "${general_config}"
+require_line '# @vendor luci-app-daede|https://github.com/kenzok8/openwrt-daede.git|main|dae:package/dae;daed:package/daed;luci-app-daede:package/luci-app-daede|daede-modern' "${general_config}"
+require_line 'CONFIG_PACKAGE_dae=y' "${general_config}"
+require_line 'CONFIG_DAE_USE_KERNEL_BTF=y' "${general_config}"
 require_line 'CONFIG_PACKAGE_daed=y' "${general_config}"
 require_line 'CONFIG_PACKAGE_luci-app-daede=y' "${general_config}"
 require_line 'CONFIG_PACKAGE_luci-app-daede_daed=y' "${general_config}"
@@ -35,6 +37,16 @@ if grep -Fqx 'CONFIG_PACKAGE_luci-app-daed=y' "${general_config}"; then
 fi
 
 require_line '    daede-modern)' "${packages_script}"
+grep -Fq 'validate_daede_source' "${packages_script}"
+grep -Fq 'validate_daede_runtime_contract' "${packages_script}"
+grep -Fq 'PKG_VERSION' "${packages_script}"
+grep -Fq 'rejectIfOtherRunning' "${packages_script}"
+grep -Fq 'stopIfRunning' "${packages_script}"
+grep -Fq 'feeds/packages/net/dae' "${packages_script}"
+grep -Fq 'feeds/luci/applications/luci-app-dae' "${packages_script}"
+grep -Fq 'CONFIG_PACKAGE_dae=y' "${settings_script}"
+grep -Fq 'CONFIG_DAE_USE_KERNEL_BTF=y' "${settings_script}"
+grep -Fq 'CONFIG_PACKAGE_daed=y' "${settings_script}"
 grep -Fq 'CONFIG_PACKAGE_luci-app-daede=y' "${settings_script}"
 grep -Fq 'CONFIG_PACKAGE_luci-app-daede_daed=y' "${settings_script}"
 grep -Fq 'CONFIG_DAED_USE_KERNEL_BTF=y' "${settings_script}"
@@ -45,4 +57,4 @@ if grep -Fq 'daed-kix-compat' "${packages_script}"; then
   exit 1
 fi
 
-echo 'DAED source and integrated BTF configuration checks passed.'
+echo 'DAE/DAED source and integrated BTF configuration checks passed.'

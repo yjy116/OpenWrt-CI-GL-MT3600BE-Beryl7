@@ -27,7 +27,9 @@ REQUIRED_CONFIG_SYMBOLS=(
   "CONFIG_PACKAGE_luci-i18n-base-zh-cn=y"
   "CONFIG_TARGET_ROOTFS_INITRAMFS=y"
 )
-DAED_REQUIRED_CONFIG_SYMBOLS=(
+DAEDE_REQUIRED_CONFIG_SYMBOLS=(
+  "CONFIG_PACKAGE_dae=y"
+  "CONFIG_DAE_USE_KERNEL_BTF=y"
   "CONFIG_PACKAGE_daed=y"
   "CONFIG_PACKAGE_luci-app-daede=y"
   "CONFIG_PACKAGE_luci-app-daede_daed=y"
@@ -225,7 +227,7 @@ validate_required_config_symbols() {
   fi
 }
 
-validate_daed_config_symbols() {
+validate_daede_config_symbols() {
   local missing=()
   local symbol
 
@@ -233,14 +235,14 @@ validate_daed_config_symbols() {
     return 0
   fi
 
-  for symbol in "${DAED_REQUIRED_CONFIG_SYMBOLS[@]}"; do
+  for symbol in "${DAEDE_REQUIRED_CONFIG_SYMBOLS[@]}"; do
     if ! grep -q "^${symbol}$" .config; then
       missing+=("${symbol}")
     fi
   done
 
   if (( ${#missing[@]} > 0 )); then
-    echo "WARNING: daed required config symbols are missing after defconfig:"
+    echo "WARNING: dae/daed required config symbols are missing after defconfig:"
     printf '  %s\n' "${missing[@]}"
   fi
 }
@@ -337,6 +339,6 @@ apply_config_fragments() {
 
   validate_device_profile_symbols
   validate_required_config_symbols
-  validate_daed_config_symbols
+  validate_daede_config_symbols
   report_dropped_requested_packages
 }

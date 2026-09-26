@@ -22,7 +22,8 @@ CONFIG_TARGET_ROOTFS_INITRAMFS=y
 # @vendor luci-app-iperf3|https://github.com/Gevatter-Tod/luci-app-iperf3.git|main|.:package/luci-app-iperf3|luci-mk-compat
 # @vendor luci-app-easytier|https://github.com/EasyTier/luci-app-easytier.git|main|.:package/easytier-openwrt|
 # DAED 使用持续维护的冻结源码包与配套中文 LuCI，避免继续依赖已经归档的旧仓库。
-# @vendor luci-app-daede|https://github.com/kenzok8/openwrt-daede.git|main|daed:package/daed;luci-app-daede:package/luci-app-daede|daede-modern
+# 同步 dae、daed 与统一 LuCI；两种后端均编入固件，但由界面互斥切换。
+# @vendor luci-app-daede|https://github.com/kenzok8/openwrt-daede.git|main|dae:package/dae;daed:package/daed;luci-app-daede:package/luci-app-daede|daede-modern
 # @vendor autocore|https://github.com/immortalwrt/immortalwrt.git|master|package/emortal/autocore:package/autocore|
 # @vendor automount|https://github.com/immortalwrt/immortalwrt.git|master|package/emortal/automount:package/automount|
 # @vendor cpufreq|https://github.com/immortalwrt/immortalwrt.git|master|package/emortal/cpufreq:package/cpufreq|
@@ -96,12 +97,15 @@ CONFIG_PACKAGE_openssl-util=y
 # OpenWrt 主线不包含 ImmortalWrt 的 fullcone 补丁链；硬件/Flow Offload 使用 nft-offload，
 # 游戏、P2P 和端口映射需求则交给 UPnP 与 natmap 这类官方 feed 插件处理。
 CONFIG_PACKAGE_adguardhome=y
+CONFIG_PACKAGE_dae=y
+CONFIG_DAE_USE_KERNEL_BTF=y
 CONFIG_PACKAGE_daed=y
 CONFIG_DAED_USE_KERNEL_BTF=y
 CONFIG_PACKAGE_easytier=y
 CONFIG_PACKAGE_luci-app-adguardhome=y
 CONFIG_PACKAGE_luci-app-autoreboot=y
 CONFIG_PACKAGE_luci-app-daede=y
+# 两个后端都编入固件；此选项只指定 LuCI 默认选中 daed，不会同时启动两项服务。
 CONFIG_PACKAGE_luci-app-daede_daed=y
 CONFIG_PACKAGE_luci-app-easytier=y
 CONFIG_PACKAGE_luci-app-sqm=y
