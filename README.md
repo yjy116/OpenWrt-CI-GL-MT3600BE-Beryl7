@@ -153,6 +153,10 @@ Config/MT3600BE.txt
 Config/MT3600BE.kernel.txt
 ```
 
+DAED 使用维护中的 `kenzok8/openwrt-daede` 源，构建其带哈希校验的冻结源码包和
+配套 `luci-app-daede` 中文管理页。配置明确选择内核集成 BTF，不依赖额外的
+`vmlinux-btf` 包；刷机后入口位于“服务 → daede”，服务仍默认关闭。
+
 第三方包通过 `Config/GENERAL.txt` 中的 `@vendor` 注释声明。只有对应
 `CONFIG_PACKAGE_*` 启用时，构建脚本才会拉取 vendor 包。
 

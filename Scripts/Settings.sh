@@ -29,7 +29,9 @@ REQUIRED_CONFIG_SYMBOLS=(
 )
 DAED_REQUIRED_CONFIG_SYMBOLS=(
   "CONFIG_PACKAGE_daed=y"
-  "CONFIG_PACKAGE_luci-app-daed=y"
+  "CONFIG_PACKAGE_luci-app-daede=y"
+  "CONFIG_PACKAGE_luci-app-daede_daed=y"
+  "CONFIG_DAED_USE_KERNEL_BTF=y"
   "CONFIG_PACKAGE_v2ray-geoip=y"
   "CONFIG_PACKAGE_v2ray-geosite=y"
   "CONFIG_BPF_TOOLCHAIN_HOST=y"
@@ -227,7 +229,7 @@ validate_daed_config_symbols() {
   local missing=()
   local symbol
 
-  if ! general_config_package_enabled "luci-app-daed"; then
+  if ! general_config_package_enabled "luci-app-daede"; then
     return 0
   fi
 

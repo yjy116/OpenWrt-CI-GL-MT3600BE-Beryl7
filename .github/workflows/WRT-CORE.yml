@@ -108,6 +108,7 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
+          bash Tests/check-daed-source.sh
           bash Tests/check-node24-actions.sh
           bash Tests/check-stable-wifi-default.sh
           bash Tests/check-default-lan-ip.sh
