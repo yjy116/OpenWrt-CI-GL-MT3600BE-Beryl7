@@ -246,6 +246,40 @@ sanitize_homeproxy_i18n_conflict() {
   done
 }
 
+patch_sane_scanner_group_collision() {
+  local core_makefile="${BUILD_ROOT}/package/system/hardware-support/Makefile"
+  local sane_makefile="${BUILD_ROOT}/feeds/packages/utils/sane-backends/Makefile"
+
+  [[ -f "${core_makefile}" && -f "${sane_makefile}" ]] || return 0
+  grep -Fqx '  USERID:=:scanner=47' "${core_makefile}" || return 0
+
+  if grep -Fqx '  USERID:=saned:scanner=47' "${sane_makefile}" && \
+    grep -Fqx '  DEPENDS:=scanner-support +libsane' "${sane_makefile}"; then
+    echo "SANE scanner-support compatibility is already present."
+    return 0
+  fi
+
+  if ! grep -Fqx '  USERID:=saned:scanner' "${sane_makefile}" || \
+    ! grep -Fqx '  DEPENDS:=+libsane' "${sane_makefile}"; then
+    echo "Unknown sane-daemon scanner identity layout: ${sane_makefile}" >&2
+    return 1
+  fi
+
+  # 中文：回移 OpenWrt packages 官方修复，scanner 组由主线 scanner-support 统一持有。
+  sed -i \
+    -e 's/^PKG_RELEASE:=1$/PKG_RELEASE:=2/' \
+    -e 's/^  DEPENDS:=+libsane$/  DEPENDS:=scanner-support +libsane/' \
+    -e 's/^  USERID:=saned:scanner$/  USERID:=saned:scanner=47/' \
+    "${sane_makefile}"
+
+  grep -Fqx '  DEPENDS:=scanner-support +libsane' "${sane_makefile}" && \
+    grep -Fqx '  USERID:=saned:scanner=47' "${sane_makefile}" || {
+      echo "Failed to apply sane-daemon scanner-support compatibility." >&2
+      return 1
+    }
+  echo "Applied sane-daemon scanner-support compatibility: ${sane_makefile}"
+}
+
 prepare_custom_packages() {
   local line package_name repo_url repo_branch copy_specs hook repo_dir
 

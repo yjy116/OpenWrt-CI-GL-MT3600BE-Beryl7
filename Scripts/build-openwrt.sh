@@ -227,6 +227,7 @@ prepare_build_workspace() {
 prepare_feeds_and_config() {
   ./scripts/feeds update -a
   prepare_custom_packages
+  patch_sane_scanner_group_collision
   ./scripts/feeds install -a
   sanitize_homeproxy_i18n_conflict
   validate_device_support
