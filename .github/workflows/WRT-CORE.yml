@@ -110,6 +110,7 @@ jobs:
           set -euo pipefail
           bash Tests/check-daed-source.sh
           bash Tests/check-sane-scanner-compat.sh
+          bash Tests/check-tvheadend-dvb-compat.sh
           bash Tests/check-node24-actions.sh
           bash Tests/check-stable-wifi-default.sh
           bash Tests/check-default-lan-ip.sh

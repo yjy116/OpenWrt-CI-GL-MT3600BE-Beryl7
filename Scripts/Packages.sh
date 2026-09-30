@@ -280,6 +280,44 @@ patch_sane_scanner_group_collision() {
   echo "Applied sane-daemon scanner-support compatibility: ${sane_makefile}"
 }
 
+patch_tvheadend_dvb_group_collision() {
+  local core_makefile="${BUILD_ROOT}/package/system/hardware-support/Makefile"
+  local tvheadend_makefile="${BUILD_ROOT}/feeds/packages/multimedia/tvheadend/Makefile"
+  local patched_makefile
+
+  [[ -f "${core_makefile}" && -f "${tvheadend_makefile}" ]] || return 0
+  grep -Fqx '  USERID:=:dvb=49' "${core_makefile}" || return 0
+
+  if grep -Fqx '  USERID:=tvheadend:dvb=49' "${tvheadend_makefile}" && \
+    grep -Fqx $'\tdvb-support \\' "${tvheadend_makefile}"; then
+    echo "TVHeadend dvb-support compatibility is already present."
+    return 0
+  fi
+
+  if ! grep -Fqx '  USERID:=tvheadend:dvb' "${tvheadend_makefile}" || \
+    grep -Fqx $'\tdvb-support \\' "${tvheadend_makefile}"; then
+    echo "Unknown TVHeadend DVB identity layout: ${tvheadend_makefile}" >&2
+    return 1
+  fi
+
+  # 中文：回移 OpenWrt packages 官方修复，dvb 组由主线 dvb-support 统一持有。
+  patched_makefile="${tvheadend_makefile}.compat"
+  awk '
+    $0 == "PKG_RELEASE:=1" { $0 = "PKG_RELEASE:=2" }
+    $0 == "  USERID:=tvheadend:dvb" { $0 = "  USERID:=tvheadend:dvb=49" }
+    { print }
+    $0 == "  DEPENDS:= \\" { print "\tdvb-support \\" }
+  ' "${tvheadend_makefile}" > "${patched_makefile}"
+  mv -f "${patched_makefile}" "${tvheadend_makefile}"
+
+  grep -Fqx '  USERID:=tvheadend:dvb=49' "${tvheadend_makefile}" && \
+    grep -Fqx $'\tdvb-support \\' "${tvheadend_makefile}" || {
+      echo "Failed to apply TVHeadend dvb-support compatibility." >&2
+      return 1
+    }
+  echo "Applied TVHeadend dvb-support compatibility: ${tvheadend_makefile}"
+}
+
 prepare_custom_packages() {
   local line package_name repo_url repo_branch copy_specs hook repo_dir
 
