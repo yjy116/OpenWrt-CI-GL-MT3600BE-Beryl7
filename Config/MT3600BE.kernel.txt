@@ -1,4 +1,4 @@
-# 中文：Honk 与 eBPF 相关工具需要的额外内核配置片段。
+# 中文：DAE、DAED、Honk 与 eBPF 工具共用的额外内核配置片段。
 
 # CONFIG_BPF_TOOLCHAIN_NONE is not set
 CONFIG_BPF_TOOLCHAIN_HOST=y

@@ -15,7 +15,7 @@ require_line() {
 
 require_line 'CONFIG_PACKAGE_honk=y' "${general_config}"
 require_line 'CONFIG_PACKAGE_luci-app-honk=y' "${general_config}"
-for package in dae daed luci-app-dae luci-app-daed luci-app-daede; do
+for package in luci-app-dae luci-app-daed; do
   require_line "CONFIG_PACKAGE_${package}=n" "${general_config}"
 done
 require_line '# @vendor luci-app-honk|https://github.com/kenzok8/openwrt-honk.git|v2026.10.12-r38236606118|honk:package/honk;luci-app-honk:package/luci-app-honk|honk-release' "${general_config}"
@@ -28,12 +28,14 @@ test_dir="$(mktemp -d)"
 trap 'rm -rf "${test_dir}"' EXIT
 BUILD_ROOT="${test_dir}/source"
 mkdir -p "${BUILD_ROOT}/package/luci-app-honk/po/zh-cn" "${BUILD_ROOT}/feeds"
+mkdir -p "${BUILD_ROOT}/package/luci-app-daede/po/zh-cn"
 cd "${test_dir}"
 touch .config
 append_auto_i18n_for_package luci-app-honk
+append_auto_i18n_for_package luci-app-daede
 test ! -s .config
 
-# 中文：旧后端不再选择；Honk 缺少运行依赖时沿用项目宽松模式，必须明确显示警告。
+# 中文：Honk 缺少运行依赖时沿用项目宽松模式，必须明确显示警告。
 validate_honk_config_symbols "${general_config}" .config > missing-config.log
 grep -Fq 'CONFIG_KERNEL_DEBUG_INFO_BTF=y' missing-config.log
 grep -Fq 'CONFIG_PACKAGE_honk=y' missing-config.log

@@ -1,0 +1,20 @@
+#!/bin/sh
+set -eu
+
+# 中文：每次刷入本固件仅执行一次，保留数据库和订阅，但不继承旧固件的自动接管状态。
+disable_proxy_backend() {
+	local service="$1" section="$2"
+	[ -x "/etc/init.d/$service" ] || return 0
+	uci set "$section.enabled=0"
+	uci commit "$service"
+	"/etc/init.d/$service" disable
+}
+
+disable_proxy_backend dae dae.config
+disable_proxy_backend daed daed.config
+if [ -x /etc/init.d/honk ]; then
+	uci set honk.main.boot_enabled=0
+fi
+disable_proxy_backend honk honk.main
+
+exit 0

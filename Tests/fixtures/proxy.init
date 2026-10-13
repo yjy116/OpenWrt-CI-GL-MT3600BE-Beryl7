@@ -1,0 +1,9 @@
+#!/bin/sh /etc/rc.common
+USE_PROCD=1
+START=99
+start_service() {
+  printf 'start-service\n'
+}
+stop_service() {
+  printf 'stop-service\n'
+}

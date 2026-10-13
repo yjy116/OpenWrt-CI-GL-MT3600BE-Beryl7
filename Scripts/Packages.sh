@@ -11,6 +11,8 @@ BUILD_ROOT="${BUILD_ROOT:-${WORK_ROOT}/openwrt-${WRT_CONFIG,,}}"
 VENDOR_ROOT="${VENDOR_ROOT:-${WORK_ROOT}/openwrt-vendor}"
 WRT_THEME="${WRT_THEME:-aurora}"
 source "${PROJECT_ROOT}/Scripts/Honk.sh"
+source "${PROJECT_ROOT}/Scripts/Daede.sh"
+source "${PROJECT_ROOT}/Scripts/ProxyServices.sh"
 
 config_package_enabled() {
   local package_name="$1"
@@ -63,6 +65,10 @@ run_vendor_hook() {
 
   case "${hook}" in
     ""|none|honk-release)
+      ;;
+    daede-modern)
+      validate_daede_source "${repo_dir}"
+      remove_daede_feed_duplicates
       ;;
     po2lmo)
       if command -v po2lmo >/dev/null 2>&1; then
@@ -272,6 +278,7 @@ prepare_custom_packages() {
     copy_vendor_specs "${repo_dir}" "${copy_specs}"
     run_vendor_hook "${repo_dir}" "${hook}"
   done < "${GENERAL_CONFIG_FILE}"
+  prepare_proxy_services
 }
 
 if [[ "${BASH_SOURCE[0]}" == "$0" ]]; then

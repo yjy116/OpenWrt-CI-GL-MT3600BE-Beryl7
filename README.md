@@ -149,17 +149,33 @@ Config/GENERAL.txt
 Config/MT3600BE.txt
 ```
 
-Honk 需要的额外内核和 BPF 选项在：
+DAE/DAED/Honk 共用的额外内核和 BPF 选项在：
 
 ```text
 Config/MT3600BE.kernel.txt
 ```
 
-### Honk + Doona
+### DAEDE 与 Honk + Doona 共存
 
-已移除旧 `dae`、`daed`、`luci-app-daede`，改为 `honk` + `luci-app-honk`。
+同时编入 `dae`、`daed`、`luci-app-daede`、`honk` 和 `luci-app-honk`。
+“服务 → DAEDE”切换 DAE/DAED；“服务 → Honk”管理 Honk + Doona。
+这不是三个同时工作的代理：**三个后端全部默认关闭，同一时刻只允许一个接管流量。**
 Doona 已包含在 `luci-app-honk` 中，不是需要另外勾选的 OpenWrt 包。
 Honk 是 Rust 实现的新核心，不是简单把原 DAE/DAED 改名。
+
+DAE 和 DAED 均使用 [kenzok8/openwrt-daede](https://github.com/kenzok8/openwrt-daede) 的
+`main` 打包源；`Scripts/Daede.sh` 核验版本、核心来源锁定值、SHA256 与中文资源契约。
+2026-10-13 核对的两者版本均为 `2026.09.24-r2`，DAEDE 为 `1.15-r9`：
+
+- 独立 DAE：`daeuniverse/dae` 核心，装配时在性能分支基线 `be2b6047eff8...` 上合并官方提交 `6f2f2aa66084...`。
+- DAED：`daeuniverse/daed` 前端 `be4ef873c352...` + `dae-wing` 后端 `b089b568649f...`，内嵌同一套 DAE 核心；不是调用另一个已运行的 `dae` 服务。
+- 编译从该维护源的 `dae-src`/`daed-src` 发布下载冻结源码并核对 `PKG_HASH`，随后本地 Go/eBPF 编译；源头由 `ci/pins.env` 与装配工作流共同记录。
+- DAEDE 自带中文翻译，不添加不存在的 `luci-i18n-daede-zh-cn`；保留内核 BTF，`vmlinux-btf` 只引入包定义消除缺依赖元数据警告，不编译、不安装影子内核 BTF。
+
+本次下载两份实际源码归档并验证 SHA256；独立 DAE 与 DAED 内嵌核心的共有文件中，
+只有 `go.mod/go.sum` 不同，独立 DAE 另含 `default.pgo`，其余核心源码内容一致。
+
+Honk + Doona 维持已验证的同一批发布：
 
 - 打包源：[kenzok8/openwrt-honk](https://github.com/kenzok8/openwrt-honk)，固定正式发布 `v2026.10.12-r38236606118`。
 - 核心源：[Glassyiris/honk](https://github.com/Glassyiris/honk)，提交 `8b6778cefa12611492187ac2560f014452f0a64a`。
@@ -171,13 +187,35 @@ Honk 是 Rust 实现的新核心，不是简单把原 DAE/DAED 改名。
 没有退回 `staging` 下载地址或 `SKIP` 哈希的路径。更新此插件时，发布标签、打包提交和
 三份元数据哈希应成套更新，不要只把 vendor 分支改成 `main`。
 
-LuCI 入口为“服务 → Honk”，中文翻译直接内置于包中，不添加不存在的
-`luci-i18n-honk-zh-cn`。首次刷入默认不启动、不自启；先初始化管理账户和配置，再手动
-启动并打开 Doona。原有 HomeProxy/OpenClash 可保留安装，但使用 Honk 前应停止它们；
+Honk 中文翻译直接内置于包中，不添加不存在的 `luci-i18n-honk-zh-cn`。
+先初始化管理账户和配置，再手动启动并打开 Doona。
+原有 HomeProxy/OpenClash 可保留安装，但使用 Honk 前应停止它们；
 上游会检查正在运行的 dae、daed、sing-box、mihomo 等冲突进程，拒绝重复接管流量。
-内核继续保留 BTF、sched-bpf、veth、nft-queue 等依赖，不另引入 `vmlinux-btf` 包。
+内核继续保留 BTF、sched-bpf、veth、nft-queue 等依赖。
 
-迁移前请在旧 DAED 界面导出配置/订阅；旧 `wing.db` 不会自动转换为 Honk 数据库。
+#### 默认关闭与切换方法
+
+`99-proxy-backends-disabled` 在**每次刷入本固件后的首次启动**执行一次，包括保留配置升级：
+保留订阅、业务配置和数据库，仅关闭 `dae.config.enabled`、`daed.config.enabled`、
+`honk.main.enabled`、`honk.main.boot_enabled`，并禁用三项服务的开机自启。
+配置完成后可手动启用其中一个；正常重启不会反复清除用户启用设置。
+
+1. 在当前后端页面停止服务，并取消它的开机自启。
+2. 等待进程退出和网络资源清理完成，再到目标页面启动另一个后端。
+3. 若提示 `Proxy service conflict` 或 `Proxy transaction busy`，先查看系统日志中 `proxy-service-guard` 的说明，不要同时反复点启动。
+
+`Scripts/ProxyServices.sh` 将公共互斥入口加到三个上游 init 脚本，
+`/usr/share/mt3600be/proxy-guard.sh` 以共享 `flock` 锁覆盖整个 init/procd 登记事务，
+并检查其它后端的 procd 实例及残留进程。未拿到 PID、等待自动重启的实例也算占用。
+启动、重启、重载、开机启动与停止都受保护，防止停止未运行的 DAE 时误删 Honk 的
+`dae0/daens` 资源；不会自动停止其它后端，不改写 Honk 的进程身份和管理 API。
+DAEDE 原有双后端切换界面保留，Honk 不强行嵌入 DAEDE。
+
+保护范围是本固件的服务启动入口，不覆盖直接手工运行核心二进制或直接调用 ubus 创建实例。
+通过外部软件包或插件“更新程序包”功能替换 init 文件会覆盖本地互斥补丁，应通过本仓库
+重新编译升级，或在替换后核验补丁仍在。三套核心并存会增加固件体积，但关闭时不会同时占用运行内存。
+
+切换前请导出配置/订阅；DAED 的 `wing.db` 不会自动转换为 Honk 数据库。
 Honk 支持在界面重新添加订阅或导入支持的 `.dae` 业务配置。后续保留配置升级会保留
 `/etc/config/honk` 与 `/etc/honk/`；升级前仍建议使用 Honk 维护页导出完整备份，
 避免仅复制运行中的 SQLite 数据库造成不一致。

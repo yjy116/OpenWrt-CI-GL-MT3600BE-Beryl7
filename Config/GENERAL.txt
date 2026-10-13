@@ -21,7 +21,10 @@ CONFIG_TARGET_ROOTFS_INITRAMFS=y
 # @vendor luci-app-mini-diskmanager|https://github.com/4IceG/luci-app-mini-diskmanager.git|main|.:package/luci-app-mini-diskmanager|
 # @vendor luci-app-iperf3|https://github.com/Gevatter-Tod/luci-app-iperf3.git|main|.:package/luci-app-iperf3|luci-mk-compat
 # @vendor luci-app-easytier|https://github.com/EasyTier/luci-app-easytier.git|main|.:package/easytier-openwrt|
-# Honk 替代旧 dae/daed；luci-app-honk 自带中文管理页与 Doona 前端。
+# DAE/DAED 共用同一维护源，由 DAEDE 切换；Honk + Doona 单独管理，三者服务层互斥且默认关闭。
+# vmlinux-btf 仅提供依赖元数据，不选择编译；三个核心均使用本固件内核 BTF。
+# @vendor luci-app-daede|https://github.com/kenzok8/openwrt-daede.git|main|dae:package/dae;daed:package/daed;luci-app-daede:package/luci-app-daede;vmlinux-btf:package/vmlinux-btf|daede-modern
+# luci-app-honk 自带中文管理页与 Doona 前端。
 # 发布标签与 Scripts/Honk.sh 的元数据校验值配套更新，禁止使用无哈希的 staging 默认值。
 # @vendor luci-app-honk|https://github.com/kenzok8/openwrt-honk.git|v2026.10.12-r38236606118|honk:package/honk;luci-app-honk:package/luci-app-honk|honk-release
 # @vendor autocore|https://github.com/immortalwrt/immortalwrt.git|master|package/emortal/autocore:package/autocore|
@@ -97,6 +100,14 @@ CONFIG_PACKAGE_openssl-util=y
 # OpenWrt 主线不包含 ImmortalWrt 的 fullcone 补丁链；硬件/Flow Offload 使用 nft-offload，
 # 游戏、P2P 和端口映射需求则交给 UPnP 与 natmap 这类官方 feed 插件处理。
 CONFIG_PACKAGE_adguardhome=y
+CONFIG_PACKAGE_dae=y
+CONFIG_DAE_USE_KERNEL_BTF=y
+CONFIG_PACKAGE_daed=y
+CONFIG_DAED_USE_KERNEL_BTF=y
+CONFIG_PACKAGE_luci-app-daede=y
+# 这里只选择默认界面后端依赖，不代表启动服务。
+CONFIG_PACKAGE_luci-app-daede_daed=y
+CONFIG_PACKAGE_flock=y
 CONFIG_PACKAGE_honk=y
 CONFIG_PACKAGE_easytier=y
 CONFIG_PACKAGE_luci-app-adguardhome=y
@@ -190,12 +201,10 @@ CONFIG_PACKAGE_usbmuxd=y
 CONFIG_PACKAGE_usbutils=y
 
 # 稳定性优先的排除项。
-# 已迁移到 Honk + Doona，不再同时编入旧核心和旧 LuCI 管理页。
-CONFIG_PACKAGE_dae=n
-CONFIG_PACKAGE_daed=n
+# 保留核心，排除旧的独立 LuCI 管理页和外置 BTF。
 CONFIG_PACKAGE_luci-app-dae=n
 CONFIG_PACKAGE_luci-app-daed=n
-CONFIG_PACKAGE_luci-app-daede=n
+CONFIG_PACKAGE_vmlinux-btf=n
 CONFIG_PACKAGE_luci-app-wol=n
 CONFIG_PACKAGE_luci-app-gecoosac=n
 CONFIG_PACKAGE_luci-app-attendedsysupgrade=n

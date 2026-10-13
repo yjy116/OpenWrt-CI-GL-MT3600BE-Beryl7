@@ -15,6 +15,7 @@ DEVICE_DTS="${DEVICE_DTS:-mt7987a-glinet-gl-mt3600be}"
 WRT_THEME="${WRT_THEME:-aurora}"
 FEEDS_PROFILE="${FEEDS_PROFILE:-immortalwrt-compatible}"
 source "${PROJECT_ROOT}/Scripts/Honk.sh"
+source "${PROJECT_ROOT}/Scripts/Daede.sh"
 LANGUAGE_CORE_PACKAGES=(
   "CONFIG_PACKAGE_luci=y"
   "CONFIG_LUCI_LANG_zh_Hans=y"
@@ -106,8 +107,8 @@ append_auto_i18n_for_package() {
   local i18n_package
 
   case "${config_package}" in
-    luci-app-honk)
-      # 中文：该包自己安装 honk.zh-cn.lmo，没有独立的 luci-i18n-honk-zh-cn 包。
+    luci-app-honk|luci-app-daede)
+      # 中文：这两个包自行安装中文 lmo，不存在独立的 luci-i18n 语言包。
       return
       ;;
     luci-app-*)
@@ -293,5 +294,6 @@ apply_config_fragments() {
   validate_device_profile_symbols
   validate_required_config_symbols
   validate_honk_config_symbols "${GENERAL_CONFIG_FILE}" .config
+  validate_daede_config_symbols "${GENERAL_CONFIG_FILE}" .config
   report_dropped_requested_packages
 }
