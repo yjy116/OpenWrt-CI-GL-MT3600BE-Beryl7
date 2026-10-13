@@ -21,9 +21,9 @@ CONFIG_TARGET_ROOTFS_INITRAMFS=y
 # @vendor luci-app-mini-diskmanager|https://github.com/4IceG/luci-app-mini-diskmanager.git|main|.:package/luci-app-mini-diskmanager|
 # @vendor luci-app-iperf3|https://github.com/Gevatter-Tod/luci-app-iperf3.git|main|.:package/luci-app-iperf3|luci-mk-compat
 # @vendor luci-app-easytier|https://github.com/EasyTier/luci-app-easytier.git|main|.:package/easytier-openwrt|
-# DAED 使用持续维护的冻结源码包与配套中文 LuCI，避免继续依赖已经归档的旧仓库。
-# 同步 dae、daed 与统一 LuCI；两种后端均编入固件，但由界面互斥切换。
-# @vendor luci-app-daede|https://github.com/kenzok8/openwrt-daede.git|main|dae:package/dae;daed:package/daed;luci-app-daede:package/luci-app-daede|daede-modern
+# Honk 替代旧 dae/daed；luci-app-honk 自带中文管理页与 Doona 前端。
+# 发布标签与 Scripts/Honk.sh 的元数据校验值配套更新，禁止使用无哈希的 staging 默认值。
+# @vendor luci-app-honk|https://github.com/kenzok8/openwrt-honk.git|v2026.10.12-r38236606118|honk:package/honk;luci-app-honk:package/luci-app-honk|honk-release
 # @vendor autocore|https://github.com/immortalwrt/immortalwrt.git|master|package/emortal/autocore:package/autocore|
 # @vendor automount|https://github.com/immortalwrt/immortalwrt.git|master|package/emortal/automount:package/automount|
 # @vendor cpufreq|https://github.com/immortalwrt/immortalwrt.git|master|package/emortal/cpufreq:package/cpufreq|
@@ -97,16 +97,11 @@ CONFIG_PACKAGE_openssl-util=y
 # OpenWrt 主线不包含 ImmortalWrt 的 fullcone 补丁链；硬件/Flow Offload 使用 nft-offload，
 # 游戏、P2P 和端口映射需求则交给 UPnP 与 natmap 这类官方 feed 插件处理。
 CONFIG_PACKAGE_adguardhome=y
-CONFIG_PACKAGE_dae=y
-CONFIG_DAE_USE_KERNEL_BTF=y
-CONFIG_PACKAGE_daed=y
-CONFIG_DAED_USE_KERNEL_BTF=y
+CONFIG_PACKAGE_honk=y
 CONFIG_PACKAGE_easytier=y
 CONFIG_PACKAGE_luci-app-adguardhome=y
 CONFIG_PACKAGE_luci-app-autoreboot=y
-CONFIG_PACKAGE_luci-app-daede=y
-# 两个后端都编入固件；此选项只指定 LuCI 默认选中 daed，不会同时启动两项服务。
-CONFIG_PACKAGE_luci-app-daede_daed=y
+CONFIG_PACKAGE_luci-app-honk=y
 CONFIG_PACKAGE_luci-app-easytier=y
 CONFIG_PACKAGE_luci-app-sqm=y
 CONFIG_PACKAGE_luci-app-homeproxy=y
@@ -195,6 +190,12 @@ CONFIG_PACKAGE_usbmuxd=y
 CONFIG_PACKAGE_usbutils=y
 
 # 稳定性优先的排除项。
+# 已迁移到 Honk + Doona，不再同时编入旧核心和旧 LuCI 管理页。
+CONFIG_PACKAGE_dae=n
+CONFIG_PACKAGE_daed=n
+CONFIG_PACKAGE_luci-app-dae=n
+CONFIG_PACKAGE_luci-app-daed=n
+CONFIG_PACKAGE_luci-app-daede=n
 CONFIG_PACKAGE_luci-app-wol=n
 CONFIG_PACKAGE_luci-app-gecoosac=n
 CONFIG_PACKAGE_luci-app-attendedsysupgrade=n

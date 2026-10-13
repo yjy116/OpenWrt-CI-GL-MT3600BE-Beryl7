@@ -297,11 +297,6 @@ setup_optional_services_disabled() {
 	# 中文：代理和 DDNS 插件保留配置入口，但默认开关关闭；需要时由用户在 LuCI 中手动启用。
 	local ddns_service
 
-	if uci -q get daed.config >/dev/null; then
-		uci -q set daed.config.enabled='0'
-		uci -q commit daed
-	fi
-
 	if uci -q get openclash.config >/dev/null; then
 		uci -q set openclash.config.enable='0'
 		uci -q commit openclash

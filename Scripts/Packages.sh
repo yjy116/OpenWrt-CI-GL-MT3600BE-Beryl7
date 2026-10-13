@@ -10,6 +10,7 @@ WRT_CONFIG="${WRT_CONFIG:-MT3600BE}"
 BUILD_ROOT="${BUILD_ROOT:-${WORK_ROOT}/openwrt-${WRT_CONFIG,,}}"
 VENDOR_ROOT="${VENDOR_ROOT:-${WORK_ROOT}/openwrt-vendor}"
 WRT_THEME="${WRT_THEME:-aurora}"
+source "${PROJECT_ROOT}/Scripts/Honk.sh"
 
 config_package_enabled() {
   local package_name="$1"
@@ -35,7 +36,8 @@ sync_git_repo() {
 
   git -C "${repo_dir}" remote set-url origin "${repo_url}"
   git -C "${repo_dir}" fetch origin "${repo_branch}" --depth 1
-  git -C "${repo_dir}" checkout -B "${repo_branch}" "origin/${repo_branch}"
+  # 中文：FETCH_HEAD 同时支持分支和发布标签，重复构建时标签没有 origin/<tag> 分支。
+  git -C "${repo_dir}" checkout --detach FETCH_HEAD
 }
 
 copy_package_dir() {
@@ -53,68 +55,6 @@ copy_package_dir() {
   rm -rf "${dst_dir}/.git"
 }
 
-read_daede_pin() {
-  local pins_file="$1"
-  local key="$2"
-
-  awk -F= -v key="${key}" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' "${pins_file}"
-}
-
-validate_daede_runtime_contract() {
-  local repo_dir="$1"
-  local widgets="${repo_dir}/luci-app-daede/htdocs/luci-static/resources/view/daede/widgets.js"
-  local backend_config marker
-
-  [[ -f "${widgets}" ]] || { echo "DAE/DAED backend switcher was not found: ${widgets}"; exit 1; }
-  for marker in "rejectIfOtherRunning" "stopIfRunning" "backend.detectRunning()"; do
-    grep -Fq "${marker}" "${widgets}" || { echo "DAE/DAED mutual exclusion marker is missing: ${marker}"; exit 1; }
-  done
-
-  for backend_config in "${repo_dir}/dae/files/dae.config" "${repo_dir}/daed/files/daed.config"; do
-    [[ -f "${backend_config}" ]] || { echo "Backend default config was not found: ${backend_config}"; exit 1; }
-    grep -Fq "option enabled '0'" "${backend_config}" || { echo "Backend must be disabled by default: ${backend_config}"; exit 1; }
-  done
-}
-
-validate_daede_source() {
-  local repo_dir="$1"
-  local pins_file="${repo_dir}/ci/pins.env"
-  local dae_workflow="${repo_dir}/.github/workflows/assemble-dae-src.yml"
-  local daed_workflow="${repo_dir}/.github/workflows/assemble-daed-src.yml"
-  local dae_version daed_version dae_package_version daed_package_version
-  local core_commit core_upstream_commit required_file workflow
-
-  for required_file in \
-    "${repo_dir}/dae/Makefile" \
-    "${repo_dir}/daed/Makefile" \
-    "${repo_dir}/luci-app-daede/Makefile" \
-    "${pins_file}" "${dae_workflow}" "${daed_workflow}"; do
-    [[ -f "${required_file}" ]] || { echo "DAE/DAED source file was not found: ${required_file}"; exit 1; }
-  done
-
-  dae_version="$(read_daede_pin "${pins_file}" "DAE_VERSION")"
-  daed_version="$(read_daede_pin "${pins_file}" "DAED_VERSION")"
-  core_commit="$(read_daede_pin "${pins_file}" "CORE_COMMIT")"
-  core_upstream_commit="$(read_daede_pin "${pins_file}" "CORE_UPSTREAM_COMMIT")"
-  [[ -n "${dae_version}" && -n "${daed_version}" && -n "${core_commit}" && -n "${core_upstream_commit}" ]] || {
-    echo "DAE/DAED source pins are incomplete: ${pins_file}"
-    exit 1
-  }
-
-  dae_package_version="$(sed -n 's/^PKG_VERSION:=//p' "${repo_dir}/dae/Makefile")"
-  daed_package_version="$(sed -n 's/^PKG_VERSION:=//p' "${repo_dir}/daed/Makefile")"
-  [[ "${dae_package_version}" == "${dae_version}" ]] || { echo "DAE PKG_VERSION does not match ci/pins.env"; exit 1; }
-  [[ "${daed_package_version}" == "${daed_version}" ]] || { echo "DAED PKG_VERSION does not match ci/pins.env"; exit 1; }
-
-  for workflow in "${dae_workflow}" "${daed_workflow}"; do
-    grep -Fq '$CORE_COMMIT' "${workflow}" || { echo "CORE_COMMIT is not used by ${workflow}"; exit 1; }
-    grep -Fq '$CORE_UPSTREAM_COMMIT' "${workflow}" || { echo "CORE_UPSTREAM_COMMIT is not used by ${workflow}"; exit 1; }
-  done
-
-  validate_daede_runtime_contract "${repo_dir}"
-  echo "Verified DAE ${dae_version} and DAED ${daed_version}: performance core ${core_commit}, upstream core ${core_upstream_commit}."
-}
-
 run_vendor_hook() {
   local repo_dir="$1"
   local hook="${2:-}"
@@ -122,7 +62,7 @@ run_vendor_hook() {
   local tailscale_makefile
 
   case "${hook}" in
-    ""|none)
+    ""|none|honk-release)
       ;;
     po2lmo)
       if command -v po2lmo >/dev/null 2>&1; then
@@ -151,22 +91,6 @@ run_vendor_hook() {
         sed -i 's|include ../../luci.mk|include $(TOPDIR)/feeds/luci/luci.mk|g' "${luci_makefile}"
         echo "Patched LuCI make include for standalone package: ${luci_makefile}"
       done < <(find "${repo_dir}" -type f -name Makefile -print0)
-      ;;
-    daede-modern)
-      # 中文：使用维护中的 openwrt-daede 源，同时清理 feeds 和旧 vendor 留下的同名包。
-      rm -rf \
-        "${BUILD_ROOT}/feeds/luci/applications/luci-app-dae" \
-        "${BUILD_ROOT}/feeds/luci/applications/luci-app-daed" \
-        "${BUILD_ROOT}/package/feeds/luci/luci-app-dae" \
-        "${BUILD_ROOT}/package/feeds/luci/luci-app-daed" \
-        "${BUILD_ROOT}/feeds/luci/applications/luci-app-daede" \
-        "${BUILD_ROOT}/package/feeds/luci/luci-app-daede" \
-        "${BUILD_ROOT}/feeds/packages/net/dae" \
-        "${BUILD_ROOT}/feeds/packages/net/daed" \
-        "${BUILD_ROOT}/package/feeds/packages/dae" \
-        "${BUILD_ROOT}/package/feeds/packages/daed" \
-        "${BUILD_ROOT}/package/luci-app-dae" \
-        "${BUILD_ROOT}/package/luci-app-daed"
       ;;
     *)
       echo "Unknown vendor hook: ${hook}"
@@ -341,8 +265,8 @@ prepare_custom_packages() {
 
     repo_dir="${VENDOR_ROOT}/${package_name}"
     sync_git_repo "${repo_url}" "${repo_branch}" "${repo_dir}"
-    if [[ "${hook}" == "daede-modern" ]]; then
-      validate_daede_source "${repo_dir}"
+    if [[ "${hook}" == "honk-release" ]]; then
+      prepare_honk_source "${repo_dir}"
     fi
     run_vendor_hook "${repo_dir}" "${hook}"
     copy_vendor_specs "${repo_dir}" "${copy_specs}"

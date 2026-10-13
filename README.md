@@ -24,7 +24,7 @@ OpenWrt 固件。
 
 手动回退建议按故障范围选择：
 
-- 日常刷机：保持 `默认使用 #35 稳定版 mt76` 为勾选状态。
+- 日常刷机：保持 `使用已验证的稳定版 mt76 WiFi 驱动` 为勾选状态。
 - OpenWrt 主线源码编译失败、内核或基础包整体回归：再填写 `openwrt_ref` 固定源码提交。
 - 想验证最新上游 WiFi 驱动：保持 `openwrt_ref` 为空，并取消勾选 mt76 稳定快照。
 
@@ -39,7 +39,7 @@ OpenWrt 固件。
 
 ## 为什么使用源码编译
 
-当前插件集合来自旧的 ImmortalWrt CI 项目，其中包含 `daed`、BPF/BTF 内核选项、
+当前插件集合来自旧的 ImmortalWrt CI 项目，其中包含 Honk、BPF/BTF 内核选项、
 第三方 LuCI 应用和若干需要完整源码树参与的包。仅使用 ImageBuilder 很难完整
 复现这些功能，所以本仓库使用完整 OpenWrt source build。
 
@@ -58,35 +58,37 @@ OpenWrt 固件。
 
 完整固件构建默认固定到 #35 已验证的 mt76 快照，避免主线 mt76 回归导致可刷固件
 出现 WiFi 连接后假死。OpenWrt 主线源码本身仍继续更新，只有无线驱动包使用稳定
-快照。2026-09-04 核对时，OpenWrt `main` 的 `package/kernel/mt76/Makefile`
+快照。2026-10-13 核对时，OpenWrt `main` 的 `package/kernel/mt76/Makefile`
 已更新为：
 
 ```text
-PKG_SOURCE_DATE:=2026-09-01
-PKG_SOURCE_VERSION:=be5ce7910521492d4a2e4ce7ee3843680a46c047
+PKG_SOURCE_DATE:=2026-10-08
+PKG_SOURCE_VERSION:=467ae2e3f190baf737e15e318906da0dc7d0ab91
 ```
 
-同时，上游仍有未合入的 mt76 修复 PR 和未关闭问题需要观察：
+相比此前的 9 月快照，10 月 6 至 8 日已经合入新的修复：
 
-- `openwrt/openwrt#24810`：修复 AP interface bring-up 后的崩溃/内存破坏，当前仍为 blocked、未合并。
-- `openwrt/mt76#1097`：`mt7996e` 在 `2026.07.01~59676919` 后触发网络不可达，当前仍为 open。
-- `openwrt/mt76#1101`：2.4 GHz IoT 客户端触发静默数据面失效，当前仍为 open。
-- `openwrt/mt76#1109`：`mt7996_mcu_rx_event` RCU stall 的一个明确原因已关闭修复。
+- [b1bc93f](https://github.com/openwrt/mt76/commit/b1bc93f95379ae1370ad7a32c01b92c022d724ba)：将 WCID 的 `idr_destroy()` 移入锁内，修复并发导致的数据破坏；此前文档中“尚未合入”已不再成立。
+- [7ff2f29](https://github.com/openwrt/mt76/commit/7ff2f295a629162867e1ef26e1a7f6d9aae47947)：修正硬件重启时 WCID 清理顺序。
+- [d5ead84](https://github.com/openwrt/mt76/commit/d5ead84240fe4f8e1bd0678a3a4b3712069db1f1)：硬件重启完成前拒绝扫描和 ROC 请求。
+- [d39a5b5](https://github.com/openwrt/mt76/commit/d39a5b53249cf4bcf7383759f59d81c521d255f9)：在卸载驱动、清理 DMA 之前停用 RX NAPI，避免访问已经清理的资源。
 
-`2026-09-01 / be5ce791...` 已包含 PS-sync 无限循环、TX DMA 映射泄漏、越界访问、
-连接监控及 WED 状态清理等多项 `mt7996` 修复，适合继续手动验证。但最新源码中
-`mt76_wcid_cleanup()` 的 `idr_destroy()` 仍位于状态锁之外，对应的竞态补丁尚未合入；
-在 MT3600BE 实机长时间验证通过前，不把它作为日常固件默认驱动。
+这些修复已进入 [OpenWrt 主线的 mt76 快照](https://github.com/openwrt/openwrt/blob/main/package/kernel/mt76/Makefile)，
+但不能等同于 MT3600BE 长时间使用已经验证稳定。
+[MT7990 长时性能衰退/失效报告 #1065](https://github.com/openwrt/mt76/issues/1065)
+仍未关闭，报告的测试硬件不是本项目的实机；
+[WiFi IPv4 NAT 下载性能报告 #1043](https://github.com/openwrt/mt76/issues/1043)
+也仍在讨论。它们是风险线索，不足以证明与本机过去的假死是同一个根因。
 
 2026-06-28 实机日志确认：OpenWrt 主线 `r0-23e5161` 上连接 WiFi 后曾触发
 `mt7996e ... Message 00130022 timeout`，随后 `napi/phy0-0` 在
 `mt7996_mcu_rx_event -> mt7996_queue_rx_skb -> mt76_dma_rx_poll` 中发生 RCU stall。
 最近自动构建日志已经确认曾使用 `2026-07-01 / 59676919...` 主线快照，实机刷入后
-很快出现 WiFi 假死。上游虽然继续更新，但相关崩溃修复尚未全部合入，因此日常
+很快出现 WiFi 假死。上游现在已有新增修复，但本机尚未完成新版驱动长时验证，因此日常
 构建默认保持勾选：
 
 ```text
-默认使用 #35 稳定版 mt76；取消勾选可测试 OpenWrt 主线 WiFi 驱动
+使用已验证的稳定版 mt76 WiFi 驱动（推荐；取消勾选则使用 OpenWrt 主线驱动）
 ```
 
 该兜底模式会把 mt76 固定到 #35 已验证快照：
@@ -147,20 +149,38 @@ Config/GENERAL.txt
 Config/MT3600BE.txt
 ```
 
-`daed` 需要的额外内核和 BPF 选项在：
+Honk 需要的额外内核和 BPF 选项在：
 
 ```text
 Config/MT3600BE.kernel.txt
 ```
 
-DAED 使用维护中的 `kenzok8/openwrt-daede` 源，构建其带哈希校验的冻结源码包和
-配套 `luci-app-daede` 中文管理页。`daed` 本身已经包含 `dae-core`、`dae-wing`、API
-与 Web 面板；项目也从同一维护源构建独立 `dae`。两者使用同一份固定的性能核心
-与官方上游核心提交，均选择内核集成 BTF，不依赖额外的 `vmlinux-btf` 包。
+### Honk + Doona
 
-`luci-app-daede` 统一管理两种后端，默认选中 `daed`。切换时会先停止当前后端，启动
-前也会检查另一后端是否仍在运行，避免两者同时接管同一套 eBPF/cgroup 流量。刷机后
-入口位于“服务 → daede”；`dae` 与 `daed` 初始均保持关闭，由用户选择后手动启动。
+已移除旧 `dae`、`daed`、`luci-app-daede`，改为 `honk` + `luci-app-honk`。
+Doona 已包含在 `luci-app-honk` 中，不是需要另外勾选的 OpenWrt 包。
+Honk 是 Rust 实现的新核心，不是简单把原 DAE/DAED 改名。
+
+- 打包源：[kenzok8/openwrt-honk](https://github.com/kenzok8/openwrt-honk)，固定正式发布 `v2026.10.12-r38236606118`。
+- 核心源：[Glassyiris/honk](https://github.com/Glassyiris/honk)，提交 `8b6778cefa12611492187ac2560f014452f0a64a`。
+- 前端源：[Zakkaus/doona](https://github.com/Zakkaus/doona)，`0.1.0-beta.20`，提交 `25fc26a7a17697c1c11a3b31f51940966ac86c2f`。
+- 上游采用预编译的多架构核心与 Doona 前端归档，本 CI 再将其打包进固件，并非在 Runner 上重新编译 Honk 的 Rust 源码。核心仍标注 alpha，需实机验证，不视为稳定性保证。
+
+`Scripts/Honk.sh` 获取同批 `source-38236606118` 的核心哈希清单、来源证明与前端清单，
+先验证 SHA256 再复制到源码树；后续 OpenWrt 下载核心和前端时继续校验归档 SHA256。
+没有退回 `staging` 下载地址或 `SKIP` 哈希的路径。更新此插件时，发布标签、打包提交和
+三份元数据哈希应成套更新，不要只把 vendor 分支改成 `main`。
+
+LuCI 入口为“服务 → Honk”，中文翻译直接内置于包中，不添加不存在的
+`luci-i18n-honk-zh-cn`。首次刷入默认不启动、不自启；先初始化管理账户和配置，再手动
+启动并打开 Doona。原有 HomeProxy/OpenClash 可保留安装，但使用 Honk 前应停止它们；
+上游会检查正在运行的 dae、daed、sing-box、mihomo 等冲突进程，拒绝重复接管流量。
+内核继续保留 BTF、sched-bpf、veth、nft-queue 等依赖，不另引入 `vmlinux-btf` 包。
+
+迁移前请在旧 DAED 界面导出配置/订阅；旧 `wing.db` 不会自动转换为 Honk 数据库。
+Honk 支持在界面重新添加订阅或导入支持的 `.dae` 业务配置。后续保留配置升级会保留
+`/etc/config/honk` 与 `/etc/honk/`；升级前仍建议使用 Honk 维护页导出完整备份，
+避免仅复制运行中的 SQLite 数据库造成不一致。
 
 第三方包通过 `Config/GENERAL.txt` 中的 `@vendor` 注释声明。只有对应
 `CONFIG_PACKAGE_*` 启用时，构建脚本才会拉取 vendor 包。

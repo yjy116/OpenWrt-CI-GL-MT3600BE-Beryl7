@@ -1,4 +1,4 @@
-# 中文：daed 与 eBPF 相关工具需要的额外内核配置片段。
+# 中文：Honk 与 eBPF 相关工具需要的额外内核配置片段。
 
 # CONFIG_BPF_TOOLCHAIN_NONE is not set
 CONFIG_BPF_TOOLCHAIN_HOST=y
@@ -28,5 +28,5 @@ CONFIG_KERNEL_BPF_EVENTS=y
 CONFIG_KERNEL_CGROUP_BPF=y
 CONFIG_KERNEL_XDP_SOCKETS=y
 
-# Answer the arm64 BRBE Kconfig prompt up front for recent 6.18 kernels.
+# 中文：预先回答近期 6.18 内核的 ARM64 BRBE 配置项，避免 CI 等待交互输入。
 CONFIG_KERNEL_ARM64_BRBE=y

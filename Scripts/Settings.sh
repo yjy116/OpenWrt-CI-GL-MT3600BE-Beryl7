@@ -14,6 +14,7 @@ DEVICE_NAME="${DEVICE_NAME:-glinet_gl-mt3600be}"
 DEVICE_DTS="${DEVICE_DTS:-mt7987a-glinet-gl-mt3600be}"
 WRT_THEME="${WRT_THEME:-aurora}"
 FEEDS_PROFILE="${FEEDS_PROFILE:-immortalwrt-compatible}"
+source "${PROJECT_ROOT}/Scripts/Honk.sh"
 LANGUAGE_CORE_PACKAGES=(
   "CONFIG_PACKAGE_luci=y"
   "CONFIG_LUCI_LANG_zh_Hans=y"
@@ -27,33 +28,6 @@ REQUIRED_CONFIG_SYMBOLS=(
   "CONFIG_PACKAGE_luci-i18n-base-zh-cn=y"
   "CONFIG_TARGET_ROOTFS_INITRAMFS=y"
 )
-DAEDE_REQUIRED_CONFIG_SYMBOLS=(
-  "CONFIG_PACKAGE_dae=y"
-  "CONFIG_DAE_USE_KERNEL_BTF=y"
-  "CONFIG_PACKAGE_daed=y"
-  "CONFIG_PACKAGE_luci-app-daede=y"
-  "CONFIG_PACKAGE_luci-app-daede_daed=y"
-  "CONFIG_DAED_USE_KERNEL_BTF=y"
-  "CONFIG_PACKAGE_v2ray-geoip=y"
-  "CONFIG_PACKAGE_v2ray-geosite=y"
-  "CONFIG_BPF_TOOLCHAIN_HOST=y"
-  "CONFIG_DWARVES=y"
-  "CONFIG_USE_LLVM_HOST=y"
-  "CONFIG_KERNEL_DEBUG_KERNEL=y"
-  "CONFIG_KERNEL_DEBUG_INFO=y"
-  "CONFIG_KERNEL_CGROUPS=y"
-  "CONFIG_KERNEL_DEBUG_INFO_BTF=y"
-  "CONFIG_KERNEL_DEBUG_INFO_BTF_MODULES=y"
-  "CONFIG_KERNEL_BPF_EVENTS=y"
-  "CONFIG_KERNEL_CGROUP_BPF=y"
-  "CONFIG_KERNEL_KPROBES=y"
-  "CONFIG_KERNEL_KPROBE_EVENTS=y"
-  "CONFIG_KERNEL_XDP_SOCKETS=y"
-  "CONFIG_KERNEL_ARM64_BRBE=y"
-  "CONFIG_PACKAGE_kmod-sched-bpf=y"
-  "CONFIG_PACKAGE_kmod-sched-core=y"
-  "CONFIG_PACKAGE_kmod-xdp-sockets-diag=y"
-)
 
 is_windows_mount_path() {
   local path="$1"
@@ -63,11 +37,6 @@ is_windows_mount_path() {
 append_config_line_if_missing() {
   local line="$1"
   grep -qxF "${line}" .config || echo "${line}" >> .config
-}
-
-general_config_package_enabled() {
-  local package_name="$1"
-  [[ -f "${GENERAL_CONFIG_FILE}" ]] && grep -Eq "^CONFIG_PACKAGE_${package_name}=y$" "${GENERAL_CONFIG_FILE}"
 }
 
 source_package_has_zh_translation() {
@@ -137,6 +106,10 @@ append_auto_i18n_for_package() {
   local i18n_package
 
   case "${config_package}" in
+    luci-app-honk)
+      # 中文：该包自己安装 honk.zh-cn.lmo，没有独立的 luci-i18n-honk-zh-cn 包。
+      return
+      ;;
     luci-app-*)
       base_name="${config_package#luci-app-}"
       ;;
@@ -223,26 +196,6 @@ validate_required_config_symbols() {
 
   if (( ${#missing[@]} > 0 )); then
     echo "WARNING: Required LuCI/i18n config symbols are missing after defconfig:"
-    printf '  %s\n' "${missing[@]}"
-  fi
-}
-
-validate_daede_config_symbols() {
-  local missing=()
-  local symbol
-
-  if ! general_config_package_enabled "luci-app-daede"; then
-    return 0
-  fi
-
-  for symbol in "${DAEDE_REQUIRED_CONFIG_SYMBOLS[@]}"; do
-    if ! grep -q "^${symbol}$" .config; then
-      missing+=("${symbol}")
-    fi
-  done
-
-  if (( ${#missing[@]} > 0 )); then
-    echo "WARNING: dae/daed required config symbols are missing after defconfig:"
     printf '  %s\n' "${missing[@]}"
   fi
 }
@@ -339,6 +292,6 @@ apply_config_fragments() {
 
   validate_device_profile_symbols
   validate_required_config_symbols
-  validate_daede_config_symbols
+  validate_honk_config_symbols "${GENERAL_CONFIG_FILE}" .config
   report_dropped_requested_packages
 }
