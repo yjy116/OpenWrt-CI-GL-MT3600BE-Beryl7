@@ -1,0 +1,71 @@
+From: OpenWrt CI compatibility backport
+Subject: [PATCH] wifi: mt76: adapt stable PPE callers to the station-index API
+
+OpenWrt 0547b912e981df32731e8bd6f583a79c1021e181 changed the WED
+ppe_check callback to take a station index. Backport the RX call sites
+from mt76 7f2f67eebb5439733a3e7f33bc816de1b7c5f080 without replacing
+the known-good driver or enabling WED by default.
+
+The flow_flush macro was introduced with the five-argument API in both
+CONFIG_NET_MEDIATEK_SOC_WED branches. Use that feature marker rather
+than LINUX_VERSION_CODE: OpenWrt changed this ABI within Linux 6.18.
+Keep the original call on older headers. The mt7996 station index must
+refer to the default link, as in net_fill_forward_path, not a constant.
+
+--- a/mt7915/mac.c
++++ b/mt7915/mac.c
+@@ -256,7 +256,14 @@ mt7915_wed_check_ppe(struct mt7915_dev *dev, struct mt76_queue *q,
+ 
++#ifdef mtk_wed_device_flow_flush
++	mtk_wed_device_ppe_check(&dev->mt76.mmio.wed, skb,
++				 FIELD_GET(MT_DMA_PPE_CPU_REASON, info),
++				 FIELD_GET(MT_DMA_PPE_ENTRY, info),
++				 msta->wcid.idx);
++#else
+ 	mtk_wed_device_ppe_check(&dev->mt76.mmio.wed, skb,
+ 				 FIELD_GET(MT_DMA_PPE_CPU_REASON, info),
+ 				 FIELD_GET(MT_DMA_PPE_ENTRY, info));
++#endif
+ }
+ 
+ static int
+--- a/mt7996/mac.c
++++ b/mt7996/mac.c
+@@ -387,12 +387,22 @@ mt7996_wed_check_ppe(struct mt7996_dev *dev, struct mt76_queue *q,
+ 		     struct mt7996_sta *msta, struct sk_buff *skb,
+ 		     u32 info)
+ {
++#ifdef mtk_wed_device_flow_flush
++	struct mt7996_sta_link *msta_link;
++#endif
+ 	struct ieee80211_vif *vif;
+ 	struct wireless_dev *wdev;
+ 
+ 	if (!msta || !msta->vif)
+ 		return;
+ 
++#ifdef mtk_wed_device_flow_flush
++	/* 中文：与硬件转发路径一致，使用默认链路的真实站点编号。 */
++	msta_link = mt7996_sta_link(msta, msta->deflink_id);
++	if (!msta_link)
++		return;
++#endif
++
+ 	if (!mt76_queue_is_wed_rx(q))
+ 		return;
+ 
+@@ -408,7 +418,14 @@ mt7996_wed_check_ppe(struct mt7996_dev *dev, struct mt76_queue *q,
+ 
++#ifdef mtk_wed_device_flow_flush
++	mtk_wed_device_ppe_check(&dev->mt76.mmio.wed, skb,
++				 FIELD_GET(MT_DMA_PPE_CPU_REASON, info),
++				 FIELD_GET(MT_DMA_PPE_ENTRY, info),
++				 msta_link->wcid.idx);
++#else
+ 	mtk_wed_device_ppe_check(&dev->mt76.mmio.wed, skb,
+ 				 FIELD_GET(MT_DMA_PPE_CPU_REASON, info),
+ 				 FIELD_GET(MT_DMA_PPE_ENTRY, info));
++#endif
+ }
+ 
+ static int

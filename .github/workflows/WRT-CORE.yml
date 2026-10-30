@@ -115,6 +115,8 @@ jobs:
           bash Tests/check-tvheadend-dvb-compat.sh
           bash Tests/check-node24-actions.sh
           bash Tests/check-stable-wifi-default.sh
+          timeout 60 python3 Tests/check-mt76-wed-compat.py
+          timeout 60 bash Tests/check-ppe-status.sh
           bash Tests/check-default-lan-ip.sh
 
       - name: Show runner information

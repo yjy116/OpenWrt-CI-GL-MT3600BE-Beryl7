@@ -103,21 +103,64 @@ PKG_MIRROR_HASH:=54a8125453a6fe04c89cf5335bdf0ea16c409361e1e5a79fb339d67cee26df0
 OpenWrt 主线，只回退无线驱动包。`push` 和 `Auto-Build` 没有交互输入，因此也默认
 使用该稳定快照；需要验证最新驱动时，请手动运行 `MT3600BE` 并取消勾选。
 
+2026-10-30 兼容说明：OpenWrt [0547b91](https://github.com/openwrt/openwrt/commit/0547b912e981df32731e8bd6f583a79c1021e181)
+将 WED/PPE 的 `ppe_check` 从四参数改为五参数，新增无线站点编号 WCID，导致
+旧 mt76 在新内核上编译失败。`006-support-wed-ppe-station-index.patch` 参照
+上游 mt76 的调用方式为 mt7915、mt7996 补齐真实 WCID，并按新增接口特征兼容旧内核。
+它不关闭 PPE，不更换稳定驱动快照，也不强制打开 WED；不是完整回移植最新驱动的
+MSCS 优先级、flow flush/idle 功能。CI 会对真实稳定快照应用全部兼容补丁，并进行
+新旧 ABI、WED 开关两种状态的调用体编译检查；完整内核编译仍由正式构建验证。
+
 ## MTK PPE 硬件流量卸载状态
 
 固件默认启用防火墙软件流量卸载和 MTK PPE 硬件流量卸载，并保留
 `kmod-nft-offload`。LuCI 系统概览会显示 CPU、连接跟踪和流量卸载状态：
 
 - `HW Offload On`：UCI 开关已启用，nftables 硬件 flowtable 规则已经生成。
-- `Software Flows`：当前进入 Linux 软件 flowtable 的连接数。
+- `Software Flows`：带软件卸载标记且未带硬件卸载标记的连接数。
 - `Hardware Flows`：conntrack 中带硬件卸载标记的连接数。
+- `Software/Hardware Flows Unavailable`：无法读取 conntrack 接口，不等于零命中。
 - `PPE Ready (0 Bound)`：MTK PPE 调试接口已就绪，但刷新页面时没有绑定中的转发流。
 - `PPE Unavailable`：系统无法读取 PPE 调试接口，需要继续检查驱动或 debugfs。
+- `WiFi WED Disabled`：mt7996e 的 WED 参数关闭，WiFi 硬件路径未请求启用。
+- `WiFi WED Requested`：参数已打开，但**不证明挂接成功或正在硬件加速**。
+- `WiFi WED Unavailable/Unknown`：参数接口不可读或值无法识别，不能当作开启。
 
 PPE 只处理符合条件的路由转发流量，访问路由器自身的 LuCI 页面不会产生 PPE 命中。
 验证时应让有线 LAN 客户端持续访问 WAN，再刷新系统概览。为避免重新引入此前的
 WiFi 假死问题，本项目不强制启用 mt7996 WED，因此 WiFi 客户端流量不保证显示为
-PPE 绑定流。
+PPE 绑定流。稳定 mt76 的 `net_fill_forward_path` 在 WED/NPU 均未挂接时会返回
+`-ENODEV`；MT7987 的内核配置和设备树包含 WED，但仍需要驱动启用并成功挂接。
+因此防火墙的硬件卸载开关不能单独打开 WiFi PPE；CPU 低、开关为 On 或 WED 参数
+为 Y 也都不能作为实际卸载证据。这里的 NPU 是驱动兼容其它平台的路径，不是本机
+需要额外安装的加速插件。
+
+### PPE 未生效时怎样区分原因
+
+先使用有线 LAN 客户端持续下载 WAN 大文件，再测试 WiFi 客户端访问同一目标。
+不要用路由器自身运行的测速、访问 LuCI 或同一网桥的 LAN-to-LAN 流量代替路由测试。
+DAE、DAED、Honk、HomeProxy 等接管的流量、SQM/QoS 和复杂转发路径需单独对照，
+不能假定它们都能卸载；测试期间仅临时停用实际启用的代理/QoS，之后恢复。
+
+在路由器 SSH 执行下列只读检查（不修改网络、不重启无线）：
+
+```sh
+sh /sbin/cpuusage --ppe-status; echo
+sh /sbin/cpuusage --wed-status; echo
+sh /sbin/cpuusage --conntrack-status; echo
+uci -q get firewall.@defaults[0].flow_offloading
+uci -q get firewall.@defaults[0].flow_offloading_hw
+nft list flowtable inet fw4 ft
+ls -l /sys/kernel/debug/ppe*/bind
+tc qdisc show
+logread | grep -Ei 'mt7996|mt7990|wed|ppe|timeout|stall'
+```
+
+`PPE Ready (N Bound)` 的 N 持续大于零才说明存在绑定流，但总数不能直接归因于 WiFi。
+需对照对应客户端连接和 PPE 表项；有线产生绑定流而 WiFi 显示 `WED Disabled` 时，
+应先认定无线卸载未启用，不能断定 PPE 整体损坏。`Requested` 且一直没有绑定流时，
+还需要完整启动日志、驱动挂接情况和实际流量路径来定位。当前没有实机证据证明
+开启 WED 后本机能长期稳定运行，因此不提供默认强开或热切换无线模块的处理方式。
 
 ## Workflows
 

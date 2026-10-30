@@ -12,6 +12,7 @@ unavailable_root="$(mktemp -d)"
 
 cleanup() {
 	rm -f "${ready_root}/ppe0/bind" "${ready_root}/ppe1/bind"
+	rm -f "${ready_root}/wed_enable" "${ready_root}/conntrack"
 	rmdir "${ready_root}/ppe0" 2>/dev/null || true
 	rmdir "${ready_root}/ppe1" 2>/dev/null || true
 	rmdir "${ready_root}" 2>/dev/null || true
@@ -40,6 +41,24 @@ test "${zero_status}" = 'Ready (0 Bound)'
 unavailable_status="$(PPE_DEBUGFS_ROOT="${unavailable_root}" sh "${cpuusage_script}" --ppe-status)"
 test "${unavailable_status}" = 'Unavailable'
 
+# 中文：WED 参数只是请求开关，不能当作挂接成功或实际流量命中。
+printf 'N\n' > "${ready_root}/wed_enable"
+test "$(WED_PARAMETER_FILE="${ready_root}/wed_enable" sh "${cpuusage_script}" --wed-status)" = 'Disabled'
+printf 'Y\n' > "${ready_root}/wed_enable"
+test "$(WED_PARAMETER_FILE="${ready_root}/wed_enable" sh "${cpuusage_script}" --wed-status)" = 'Requested'
+test "$(WED_PARAMETER_FILE="${unavailable_root}/wed_enable" sh "${cpuusage_script}" --wed-status)" = 'Unavailable'
+printf 'invalid\n' > "${ready_root}/wed_enable"
+test "$(WED_PARAMETER_FILE="${ready_root}/wed_enable" sh "${cpuusage_script}" --wed-status)" = 'Unknown'
+
+# 中文：缺少 conntrack 统计接口时不能声称硬件流为零。
+test "$(CONNTRACK_FILE="${unavailable_root}/conntrack" sh "${cpuusage_script}" --conntrack-status)" = 'Software Flows Unavailable | Hardware Flows Unavailable'
+# 中文：即使路径可读，实际读取失败也必须是未知状态而不是零命中。
+test "$(CONNTRACK_FILE="${unavailable_root}" sh "${cpuusage_script}" --conntrack-status)" = 'Software Flows Unavailable | Hardware Flows Unavailable'
+printf '%s\n' 'ipv4 2 tcp 6 [OFFLOAD]' 'ipv4 2 udp 17 [OFFLOAD] [HW_OFFLOAD]' > "${ready_root}/conntrack"
+test "$(CONNTRACK_FILE="${ready_root}/conntrack" sh "${cpuusage_script}" --conntrack-status)" = 'Software Flows 1 | Hardware Flows 1'
+: > "${ready_root}/conntrack"
+test "$(CONNTRACK_FILE="${ready_root}/conntrack" sh "${cpuusage_script}" --conntrack-status)" = 'Software Flows 0 | Hardware Flows 0'
+
 # 中文：有线 PPE 的内核模块与防火墙硬件卸载默认值必须保持启用。
 grep -Fqx 'CONFIG_PACKAGE_kmod-nft-offload=y' "${general_config}"
 grep -Fqx "set firewall.@defaults[0].flow_offloading='1'" "${defaults_file}"
@@ -53,6 +72,7 @@ fi
 
 # 中文：状态名称必须区分配置状态、软件流、硬件流和 PPE 实际绑定流。
 grep -Fq "Connections %s | HW Offload %s | Software Flows %s | Hardware Flows %s | PPE %s" "${cpuusage_script}"
+grep -Fq '| WiFi WED %s' "${cpuusage_script}"
 grep -Fq "Ready (%s Bound)" "${cpuusage_script}"
 grep -Fq "Unavailable" "${cpuusage_script}"
 

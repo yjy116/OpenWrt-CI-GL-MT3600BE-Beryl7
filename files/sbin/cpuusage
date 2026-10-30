@@ -4,6 +4,8 @@
 # 中文：Software Flows 是 Linux flowtable 软件快路径；Hardware Flows 是 conntrack 的硬件卸载标记；PPE Bound 是 MTK PPE 表里实际绑定的硬件流。
 
 PPE_DEBUGFS_ROOT="${PPE_DEBUGFS_ROOT:-/sys/kernel/debug}"
+WED_PARAMETER_FILE="${WED_PARAMETER_FILE:-/sys/module/mt7996e/parameters/wed_enable}"
+CONNTRACK_FILE="${CONNTRACK_FILE:-/proc/net/nf_conntrack}"
 
 get_cpu_usage() {
 	top -bn1 2>/dev/null | awk '
@@ -43,13 +45,14 @@ get_conntrack_usage() {
 
 count_conntrack_marker() {
 	local marker="$1"
+	local counts
 
-	[ -r /proc/net/nf_conntrack ] || {
-		printf '0 0 0 0'
+	[ -f "${CONNTRACK_FILE}" ] && [ -r "${CONNTRACK_FILE}" ] || {
+		printf 'Unavailable'
 		return
 	}
 
-	awk -v marker="${marker}" '
+	if ! counts="$(awk -v marker="${marker}" '
 		BEGIN { tcp = 0; udp = 0; other = 0; total = 0 }
 		{
 			if (marker == "sw") {
@@ -69,7 +72,27 @@ count_conntrack_marker() {
 				other++
 		}
 		END { printf "%d %d %d %d", tcp, udp, other, total }
-	' /proc/net/nf_conntrack 2>/dev/null
+	' "${CONNTRACK_FILE}")"; then
+		# 中文：保留 awk 错误日志，但丢弃失败时产生的部分统计结果。
+		printf 'Unavailable'
+		return
+	fi
+	printf '%s' "${counts}"
+}
+
+get_wed_state() {
+	local value
+	if [ ! -r "${WED_PARAMETER_FILE}" ]; then
+		printf 'Unavailable'
+		return
+	fi
+	value="$(cat "${WED_PARAMETER_FILE}")"
+	# 中文：参数为 Y 只表示请求启用；驱动挂接失败也可能仍显示 Y。
+	case "${value}" in
+		Y|y|1) printf 'Requested' ;;
+		N|n|0) printf 'Disabled' ;;
+		*) printf 'Unknown' ;;
+	esac
 }
 
 count_ppe_bnd_file() {
@@ -142,11 +165,19 @@ get_hfo_state() {
 }
 
 format_total() {
+	if [ "$1" = 'Unavailable' ]; then
+		printf 'Unavailable'
+		return
+	fi
 	set -- $1
 	printf '%s' "${4:-0}"
 }
 
 format_counts() {
+	if [ "$1" = 'Unavailable' ]; then
+		printf 'Unavailable'
+		return
+	fi
 	set -- $1
 	printf 'TCP %s, UDP %s, Other %s, Total %s' "${1:-0}" "${2:-0}" "${3:-0}" "${4:-0}"
 }
@@ -179,6 +210,18 @@ if [ "${1:-}" = "--ppe-status" ]; then
 	exit 0
 fi
 
+if [ "${1:-}" = "--wed-status" ]; then
+	get_wed_state
+	exit 0
+fi
+
+if [ "${1:-}" = "--conntrack-status" ]; then
+	printf 'Software Flows %s | Hardware Flows %s' \
+		"$(format_total "$(count_conntrack_marker sw)")" \
+		"$(format_total "$(count_conntrack_marker hw)")"
+	exit 0
+fi
+
 cpu="$(get_cpu_usage)"
 [ -n "${cpu}" ] || cpu="0"
 conntrack="$(get_conntrack_usage)"
@@ -186,21 +229,24 @@ hfo="$(get_hfo_state)"
 sw_counts="$(count_conntrack_marker sw)"
 ct_hw_counts="$(count_conntrack_marker hw)"
 ppe_state="$(get_ppe_state)"
+wed_state="$(get_wed_state)"
 
 if [ "${CPUUSAGE_DETAIL:-0}" = "1" ]; then
-	printf 'CPU %s%% | Connections %s | HW Offload %s | Software Flows %s | Hardware Flows %s | PPE %s' \
+	printf 'CPU %s%% | Connections %s | HW Offload %s | Software Flows %s | Hardware Flows %s | PPE %s | WiFi WED %s' \
 		"${cpu}" \
 		"${conntrack}" \
 		"${hfo}" \
 		"$(format_counts "${sw_counts}")" \
 		"$(format_counts "${ct_hw_counts}")" \
-		"${ppe_state}"
+		"${ppe_state}" \
+		"${wed_state}"
 else
-	printf 'CPU %s%% | Connections %s | HW Offload %s | Software Flows %s | Hardware Flows %s | PPE %s' \
+	printf 'CPU %s%% | Connections %s | HW Offload %s | Software Flows %s | Hardware Flows %s | PPE %s | WiFi WED %s' \
 		"${cpu}" \
 		"${conntrack}" \
 		"${hfo}" \
 		"$(format_total "${sw_counts}")" \
 		"$(format_total "${ct_hw_counts}")" \
-		"${ppe_state}"
+		"${ppe_state}" \
+		"${wed_state}"
 fi

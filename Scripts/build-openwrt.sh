@@ -126,7 +126,7 @@ configure_mt76_snapshot() {
     return
   fi
 
-  # 中文：默认跟随 OpenWrt mainline mt76；只有手动兜底或二分测试时才改写 mt76 快照。
+  # 中文：日常构建默认使用稳定 mt76；取消稳定选项时保持源码树自带的主线快照。
   sed -i \
     -e "s|^PKG_SOURCE_DATE:=.*|PKG_SOURCE_DATE:=${source_date}|" \
     -e "s|^PKG_SOURCE_VERSION:=.*|PKG_SOURCE_VERSION:=${source_version}|" \
