@@ -35,6 +35,7 @@ BUILD_MODE="${1:-build}"
 
 source "${PROJECT_ROOT}/Scripts/Settings.sh"
 source "${PROJECT_ROOT}/Scripts/Packages.sh"
+source "${PROJECT_ROOT}/Scripts/Experimental-WED.sh"
 
 run_git_with_retry() {
   local max_try="${1:-5}"
@@ -221,6 +222,7 @@ prepare_build_workspace() {
   apply_feeds_profile
   sync_rootfs_overlay
   write_build_info_overlay
+  install_experimental_wed
   prepare_shared_cache_dirs
 }
 
@@ -233,6 +235,7 @@ prepare_feeds_and_config() {
   sanitize_homeproxy_i18n_conflict
   validate_device_support
   apply_config_fragments
+  validate_experimental_wed_config
 }
 
 run_make() {
@@ -279,6 +282,7 @@ main() {
 
       make download -j"${JOBS}"
       find dl -type f -size -1024c -delete
+      compile_experimental_wed
       run_full_build
 
       if command -v ccache >/dev/null 2>&1; then

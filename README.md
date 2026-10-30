@@ -3,6 +3,21 @@
 本仓库用于通过 GitHub Actions 为 GL.iNet GL-MT3600BE / Beryl 7 编译自定义
 OpenWrt 固件。
 
+## MT7987 WED 独立实验分支
+
+本分支 `experiment/mt7987-wed-6.18` 评估 MediaTek 官方 WED 3.1 与配套 mt76
+修改，**不等于已经修复 WiFi PPE，也不替代 main 的稳定配置**。
+日常插件、IP、主题和稳定 WiFi 选择保持原样；只有独立工作流
+`MT3600BE-WED-EXPERIMENTAL` 会应用实验补丁并请求 WED。
+
+- 推送本分支中的构建相关修改会自动启动实验构建，不必改 main 或重复启动日常编译。
+- 实验固定 OpenWrt `5700101d7c85` / Linux `6.18.55` 和稳定 mt76 `018f60316d4d`，
+  以便明确验证兼容性；这不改变 main 跟随上游的策略。
+- 不恢复、不保存 GitHub 缓存，不创建 Release；在对应 Actions 的 Artifacts 下载
+  带 `WED-EXPERIMENTAL` 标识的测试产物。
+- 请先查看[移植范围、验证方法与回退说明](Patches/wed-experimental/README.md)。
+  必须验证 WED 挂接、测试五元组的 PPE 绑定及数小时稳定性，不能仅凭开关或编译成功判断。
+
 项目从原 ImmortalWrt CI 配置迁移而来，但固件源码默认跟随 OpenWrt 主线：
 
 - 源码仓库：`https://github.com/openwrt/openwrt.git`

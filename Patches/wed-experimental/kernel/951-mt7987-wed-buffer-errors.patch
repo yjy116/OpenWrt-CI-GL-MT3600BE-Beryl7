@@ -1,0 +1,114 @@
+Subject: [EXPERIMENTAL] net: mediatek: fix WED allocation error cleanup
+
+中文：修复实验路径继承的部分分配泄漏、重复释放及 RX 初始化错误传播。
+测试直接提取真实函数，覆盖分配失败、重复释放及复位后的分配失败。
+License: GPL-2.0-only, as in the original kernel source file.
+
+diff --git a/drivers/net/ethernet/mediatek/mtk_wed.c b/drivers/net/ethernet/mediatek/mtk_wed.c
+index e5ad4bb..6144a8d 100644
+--- a/drivers/net/ethernet/mediatek/mtk_wed.c
++++ b/drivers/net/ethernet/mediatek/mtk_wed.c
+@@ -563,8 +563,7 @@ mtk_wed_amsdu_buffer_alloc(struct mtk_wed_device *dev)
+ 	if (!mtk_wed_is_v3_or_greater(hw))
+ 		return 0;
+ 
+-	wed_amsdu = devm_kcalloc(hw->dev, MTK_WED_AMSDU_NPAGES,
+-				 sizeof(*wed_amsdu), GFP_KERNEL);
++	wed_amsdu = kcalloc(MTK_WED_AMSDU_NPAGES, sizeof(*wed_amsdu), GFP_KERNEL);
+ 	if (!wed_amsdu)
+ 		return -ENOMEM;
+ 
+@@ -583,17 +582,23 @@ mtk_wed_amsdu_buffer_alloc(struct mtk_wed_device *dev)
+ 		wed_amsdu[i].txd_phy = dma_map_single(hw->dev, ptr,
+ 						      MTK_WED_AMSDU_BUF_SIZE,
+ 						      DMA_TO_DEVICE);
+-		if (dma_mapping_error(hw->dev, wed_amsdu[i].txd_phy))
++		if (dma_mapping_error(hw->dev, wed_amsdu[i].txd_phy)) {
++			free_pages((unsigned long)ptr, get_order(MTK_WED_AMSDU_BUF_SIZE));
+ 			goto error;
++		}
+ 	}
+ 	dev->hw->wed_amsdu = wed_amsdu;
+ 
+ 	return 0;
+ 
+ error:
+-	for (i--; i >= 0; i--)
++	for (i--; i >= 0; i--) {
+ 		dma_unmap_single(hw->dev, wed_amsdu[i].txd_phy,
+ 				 MTK_WED_AMSDU_BUF_SIZE, DMA_TO_DEVICE);
++		free_pages((unsigned long)wed_amsdu[i].txd,
++			   get_order(MTK_WED_AMSDU_BUF_SIZE));
++	}
++	kfree(wed_amsdu);
+ 	return -ENOMEM;
+ }
+ 
+@@ -606,12 +611,15 @@ mtk_wed_amsdu_free_buffer(struct mtk_wed_device *dev)
+ 	if (!wed_amsdu)
+ 		return;
+ 
++	/* 所有权在释放前撤销，detach 或失败回收重复进入时不能再访问旧页。 */
++	dev->hw->wed_amsdu = NULL;
+ 	for (i = 0; i < MTK_WED_AMSDU_NPAGES; i++) {
+ 		dma_unmap_single(dev->hw->dev, wed_amsdu[i].txd_phy,
+ 				 MTK_WED_AMSDU_BUF_SIZE, DMA_TO_DEVICE);
+ 		free_pages((unsigned long)wed_amsdu[i].txd,
+ 			   get_order(MTK_WED_AMSDU_BUF_SIZE));
+ 	}
++	kfree(wed_amsdu);
+ }
+ 
+ static int
+@@ -882,6 +890,7 @@ mtk_wed_rx_buffer_alloc(struct mtk_wed_device *dev)
+ {
+ 	struct mtk_wed_bm_desc *desc;
+ 	dma_addr_t desc_phys;
++	int ret;
+ 
+ 	dev->rx_buf_ring.size = dev->wlan.rx_nbuf;
+ 	desc = dma_alloc_coherent(dev->hw->dev,
+@@ -892,7 +901,14 @@ mtk_wed_rx_buffer_alloc(struct mtk_wed_device *dev)
+ 
+ 	dev->rx_buf_ring.desc = desc;
+ 	dev->rx_buf_ring.desc_phys = desc_phys;
+-	dev->wlan.init_rx_buf(dev, dev->wlan.rx_npkt);
++	ret = dev->wlan.init_rx_buf(dev, dev->wlan.rx_npkt);
++	if (ret) {
++		/* mt76 已回收部分 RX 页；这里撤销描述符，禁止发布失效的 RX BM。 */
++		dma_free_coherent(dev->hw->dev, dev->wlan.rx_nbuf * sizeof(*desc),
++				  desc, desc_phys);
++		dev->rx_buf_ring.desc = NULL;
++		return ret;
++	}
+ 
+ 	return mtk_wed_hwrro_buffer_alloc(dev);
+ }
+@@ -949,6 +965,8 @@ mtk_wed_free_rx_buffer(struct mtk_wed_device *dev)
+ 	dev->wlan.release_rx_buf(dev);
+ 	dma_free_coherent(dev->hw->dev, dev->rx_buf_ring.size * sizeof(*desc),
+ 			  desc, dev->rx_buf_ring.desc_phys);
++	/* 复位后重新分配可能失败，不能让 detach 再次释放旧描述符。 */
++	dev->rx_buf_ring.desc = NULL;
+ 
+ 	mtk_wed_hwrro_free_buffer(dev);
+ }
+@@ -2773,10 +2791,15 @@ mtk_wed_rro_3_1_rx_ring_setup(struct mtk_wed_device *dev, void __iomem *regs)
+ static void
+ mtk_wed_start(struct mtk_wed_device *dev, u32 irq_mask)
+ {
+-	int i;
++	int i, ret;
+ 
+-	if (mtk_wed_get_rx_capa(dev) && mtk_wed_rx_buffer_alloc(dev))
+-		return;
++	if (mtk_wed_get_rx_capa(dev)) {
++		ret = mtk_wed_rx_buffer_alloc(dev);
++		if (ret) {
++			dev_err(dev->hw->dev, "WED RX buffer initialization failed: %d\n", ret);
++			return;
++		}
++	}
+ 
+ 	for (i = 0; i < ARRAY_SIZE(dev->rx_wdma); i++)
+ 		if (!dev->rx_wdma[i].desc)

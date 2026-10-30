@@ -1,0 +1,37 @@
+name: MT3600BE-WED-EXPERIMENTAL
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - experiment/mt7987-wed-6.18
+    paths:
+      - .github/workflows/**
+      - Config/**
+      - Patches/**
+      - Scripts/**
+      - Tests/**
+      - files/**
+
+permissions:
+  contents: write
+
+jobs:
+  experimental:
+    name: MT7987 WED 实验编译（非稳定版）
+    uses: ./.github/workflows/WRT-CORE.yml
+    with:
+      wrt_config: MT3600BE
+      wrt_name: GL-MT3600BE-WED-EXPERIMENTAL
+      wrt_device_name: glinet_gl-mt3600be
+      wrt_device_dts: mt7987a-glinet-gl-mt3600be
+      wrt_theme: aurora
+      wrt_branch: main
+      # 中文：只固定实验基线，main 分支的日常构建仍跟随上游。
+      wrt_ref: 5700101d7c85381889d890dc1d3d001d0b4b6446
+      feeds_profile: immortalwrt-compatible
+      pin_mt76_known_good: true
+      experimental_mt7987_wed: true
+      cleanup_runner: true
+      # 中文：实验版仅上传 Actions 产物，不创建或替换日常 Release。
+      publish_release: false

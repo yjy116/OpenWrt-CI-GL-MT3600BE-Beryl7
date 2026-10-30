@@ -67,6 +67,10 @@ on:
         required: false
         type: boolean
         default: false
+      experimental_mt7987_wed:
+        required: false
+        type: boolean
+        default: false
 
 permissions:
   contents: write
@@ -99,6 +103,7 @@ jobs:
       MT76_MIRROR_HASH: ${{ inputs.mt76_mirror_hash }}
       MT76_APPLY_KNOWN_GOOD_PATCHES: ${{ inputs.mt76_apply_known_good_patches && '1' || '0' }}
       RELEASE_TAG_PREFIX: mt3600be-openwrt
+      EXPERIMENTAL_MT7987_WED: ${{ inputs.experimental_mt7987_wed && '1' || '0' }}
 
     steps:
       - name: Checkout helper repository
@@ -118,6 +123,7 @@ jobs:
           timeout 60 python3 Tests/check-mt76-wed-compat.py
           timeout 60 bash Tests/check-ppe-status.sh
           bash Tests/check-default-lan-ip.sh
+          timeout 60 bash Tests/check-experimental-wed.sh
 
       - name: Show runner information
         shell: bash
@@ -171,6 +177,9 @@ jobs:
           vendor_root="${work_root}/openwrt-vendor"
           build_stamp="$(TZ=Asia/Shanghai date +'%y.%m.%d-%H.%M.%S')"
           build_label="Beryl7-${build_stamp}"
+          if [[ "${EXPERIMENTAL_MT7987_WED}" == 1 ]]; then
+            build_label="Beryl7-WED-EXPERIMENTAL-${build_stamp}"
+          fi
 
           mkdir -p "${dl_dir}" "${ccache_dir}"
 
@@ -192,6 +201,7 @@ jobs:
           } >> "${GITHUB_OUTPUT}"
 
       - name: Restore download cache
+        if: ${{ !inputs.experimental_mt7987_wed }}
         uses: actions/cache/restore@v5
         with:
           path: ${{ steps.workspace.outputs.dl_dir }}
@@ -202,6 +212,7 @@ jobs:
             ${{ runner.os }}-dl-
 
       - name: Restore ccache
+        if: ${{ !inputs.experimental_mt7987_wed }}
         uses: actions/cache/restore@v5
         with:
           path: ${{ steps.workspace.outputs.ccache_dir }}
@@ -228,14 +239,14 @@ jobs:
           bash Scripts/build-openwrt.sh 2>&1 | tee "${RUNNER_TEMP}/build.log"
 
       - name: Save download cache
-        if: ${{ always() }}
+        if: ${{ always() && !inputs.experimental_mt7987_wed }}
         uses: actions/cache/save@v5
         with:
           path: ${{ steps.workspace.outputs.dl_dir }}
           key: ${{ runner.os }}-dl-${{ inputs.wrt_branch }}-${{ inputs.wrt_ref != '' && inputs.wrt_ref || 'floating' }}-${{ github.sha }}
 
       - name: Save ccache
-        if: ${{ always() }}
+        if: ${{ always() && !inputs.experimental_mt7987_wed }}
         uses: actions/cache/save@v5
         with:
           path: ${{ steps.workspace.outputs.ccache_dir }}
@@ -262,7 +273,7 @@ jobs:
 
       - name: Prepare release metadata
         id: release_meta
-        if: ${{ !inputs.test_only && inputs.publish_release }}
+        if: ${{ !inputs.experimental_mt7987_wed && !inputs.test_only && inputs.publish_release }}
         shell: bash
         run: |
           set -euo pipefail
@@ -270,7 +281,7 @@ jobs:
 
       - name: Publish GitHub release
         id: publish_release
-        if: ${{ !inputs.test_only && inputs.publish_release }}
+        if: ${{ !inputs.experimental_mt7987_wed && !inputs.test_only && inputs.publish_release }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
