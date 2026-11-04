@@ -36,8 +36,8 @@ sync_git_repo() {
     return
   fi
 
-  git -C "${repo_dir}" remote set-url origin "${repo_url}"
-  git -C "${repo_dir}" fetch origin "${repo_branch}" --depth 1
+  git -C "${repo_dir}" remote set-url origin "${repo_url}" || return 1
+  git -C "${repo_dir}" fetch origin "${repo_branch}" --depth 1 || return 1
   # 中文：FETCH_HEAD 同时支持分支和发布标签，重复构建时标签没有 origin/<tag> 分支。
   git -C "${repo_dir}" checkout --detach FETCH_HEAD
 }
@@ -270,9 +270,10 @@ prepare_custom_packages() {
     fi
 
     repo_dir="${VENDOR_ROOT}/${package_name}"
-    sync_git_repo "${repo_url}" "${repo_branch}" "${repo_dir}"
     if [[ "${hook}" == "honk-release" ]]; then
-      prepare_honk_source "${repo_dir}"
+      sync_honk_release "${repo_url}" "${repo_branch}" "${repo_dir}"
+    else
+      sync_git_repo "${repo_url}" "${repo_branch}" "${repo_dir}"
     fi
     run_vendor_hook "${repo_dir}" "${hook}"
     copy_vendor_specs "${repo_dir}" "${copy_specs}"

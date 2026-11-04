@@ -1,4 +1,6 @@
 .tmp/
+# Python 发布解析与回归测试产生的字节码缓存不入库。
+__pycache__/
 artifacts/
 openwrt-*/
 openwrt-vendor/

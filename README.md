@@ -218,17 +218,22 @@ DAE 和 DAED 均使用 [kenzok8/openwrt-daede](https://github.com/kenzok8/openwr
 本次下载两份实际源码归档并验证 SHA256；独立 DAE 与 DAED 内嵌核心的共有文件中，
 只有 `go.mod/go.sum` 不同，独立 DAE 另含 `default.pgo`，其余核心源码内容一致。
 
-Honk + Doona 维持已验证的同一批发布：
+Honk + Doona 每次编译自动选择上游最新正式发布，并保持同批配套：
 
-- 打包源：[kenzok8/openwrt-honk](https://github.com/kenzok8/openwrt-honk)，固定正式发布 `v2026.10.12-r38236606118`。
-- 核心源：[Glassyiris/honk](https://github.com/Glassyiris/honk)，提交 `8b6778cefa12611492187ac2560f014452f0a64a`。
-- 前端源：[Zakkaus/doona](https://github.com/Zakkaus/doona)，`0.1.0-beta.20`，提交 `25fc26a7a17697c1c11a3b31f51940966ac86c2f`。
-- 上游采用预编译的多架构核心与 Doona 前端归档，本 CI 再将其打包进固件，并非在 Runner 上重新编译 Honk 的 Rust 源码。核心仍标注 alpha，需实机验证，不视为稳定性保证。
+- 打包源：[kenzok8/openwrt-honk](https://github.com/kenzok8/openwrt-honk/releases/latest)。`GENERAL.txt` 中的 `latest-stable` 是本项目的发布策略，不是 Git 分支；不选草稿、候选版或预发布包，也不直接追打包仓库 `main`。
+- 核心和前端版本以该正式标签下的 `ci/pins.env`、`release-manifest.json` 及源码元数据为准，不分别取两个项目的最新提交。
+- 2026-11-04 核验的正式包为 `v2026.11.03-r41604962306`：核心源 [daeuniverse/honk](https://github.com/daeuniverse/honk)，提交 `77176ff8e8cc2b75385a7030dc376536c382574a`；前端源 [Zakkaus/doona](https://github.com/Zakkaus/doona)，`0.1.0-rc.5`，提交 `46e153cf405ce665983794cf297fb5cf6d38084c`。这些是核验快照，不是固定版本。
+- “稳定”指打包维护者标记的正式 Release，内部组件仍可能为 RC/测试版本，不代表路由器运行稳定性保证。上游预编译核心与 Doona 归档，本 CI 校验后打包，不在 Runner 上重新编译 Honk Rust 源码。
 
-`Scripts/Honk.sh` 获取同批 `source-38236606118` 的核心哈希清单、来源证明与前端清单，
-先验证 SHA256 再复制到源码树；后续 OpenWrt 下载核心和前端时继续校验归档 SHA256。
-没有退回 `staging` 下载地址或 `SKIP` 哈希的路径。更新此插件时，发布标签、打包提交和
-三份元数据哈希应成套更新，不要只把 vendor 分支改成 `main`。
+`Scripts/Honk.sh` 与 `Scripts/honk_release.py` 每次重新查询最新正式标签，拉取该标签源码，
+验证打包提交、核心/Doona 提交、来源与三个生成文件的 SHA256，再复制到构建树。
+`source-*` 素材批次由正式包清单指定，即使上游将素材批次标为预发布也可使用；不能根据正式标签的数字后缀推算。
+素材文件的哈希同时与 Makefile、GitHub 资产摘要交叉核对，OpenWrt 下载实际核心及前端时再次验证 SHA256。
+旧 vendor 目录中的生成文件会被本批已验证文件替换；下载缓存不会锁定插件版本，也无需每次清缓存。
+API 查询、源码关联或哈希校验失败会明确停止构建，不回退旧版、`staging` 或 `SKIP`。
+日志输出实际正式标签、打包提交、核心和 Doona 来源/提交以及素材批次，便于追溯。
+CI 使用 `github.token` 查询 API，本地运行可通过 `GH_TOKEN` 或 `GITHUB_TOKEN` 提供令牌以避免匿名限额。
+此策略仅影响 Honk/Doona，不改变稳定 WiFi 选项，也不修改 WED 实验分支。
 
 Honk 中文翻译直接内置于包中，不添加不存在的 `luci-i18n-honk-zh-cn`。
 先初始化管理账户和配置，再手动启动并打开 Doona。

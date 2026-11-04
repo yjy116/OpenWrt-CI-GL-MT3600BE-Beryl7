@@ -1,9 +1,6 @@
 #!/usr/bin/env bash
 
-# 中文：固定已完成上游 SDK 矩阵构建的同一批发布，核心与前端都使用真实 SHA256。
-# 与 GENERAL.txt 中的 v2026.10.12-r38236606118 标签同步更新。
-HONK_PACKAGE_COMMIT=52ecdb1bb26e04be782bcb368973fd54d4a44af6
-HONK_SOURCE_TAG=source-38236606118
+# 中文：每次构建解析最新正式发布，核心与 Doona 必须使用该发布指定的同一批资产。
 
 HONK_REQUIRED_CONFIG_SYMBOLS=(
   "CONFIG_PACKAGE_honk=y"
@@ -49,31 +46,16 @@ validate_honk_config_symbols() {
   fi
 }
 
-fetch_honk_metadata() {
-  local destination="$1" expected_hash="$2"
-  local source_url="https://github.com/kenzok8/openwrt-honk/releases/download/${HONK_SOURCE_TAG}/${destination##*/}"
+sync_honk_release() {
+  local repo_url="$1" policy="$2" repo_dir="$3" tag
+  local resolver="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/honk_release.py"
 
-  curl --fail --location --silent --show-error \
-    --output "${destination}.download" "${source_url}" || return 1
-  printf '%s  %s\n' "${expected_hash}" "${destination}.download" | sha256sum --check - || return 1
-  mv -f "${destination}.download" "${destination}"
-}
-
-prepare_honk_source() {
-  local repo_dir="$1"
-
-  [[ "$(git -C "${repo_dir}" rev-parse HEAD)" == "${HONK_PACKAGE_COMMIT}" ]] || {
-    echo "Honk package revision does not match the verified release metadata." >&2
+  [[ "${repo_url}" == https://github.com/kenzok8/openwrt-honk.git && "${policy}" == latest-stable ]] || {
+    echo 'Honk requires the kenzok8/openwrt-honk latest-stable release policy.' >&2
     return 1
   }
-
-  # 中文：必须在复制包、解析 Makefile 之前取得生成文件，不回退到 staging/SKIP。
-  fetch_honk_metadata "${repo_dir}/honk/generated-stage.mk" \
-    534de1bc50183577d57ec91f0b8b3ba499722b1be6815dbf422bca26fe90b121 || return 1
-  fetch_honk_metadata "${repo_dir}/honk/generated-provenance.json" \
-    04c168b50801644b630e355fe9baceee061f246e3194e8897f5e136bff22eb46 || return 1
-  fetch_honk_metadata "${repo_dir}/luci-app-honk/generated-doona-stage.mk" \
-    c5013b4707959ec09e28b75e09a01ab4fcc3087ac4b7eada784c7903884f5e4c || return 1
-
-  echo "Verified Honk/Doona release metadata: ${HONK_SOURCE_TAG} (${HONK_PACKAGE_COMMIT})."
+  tag="$(python3 "${resolver}" resolve)" || return 1
+  echo "Selected latest formal Honk/Doona release: ${tag}"
+  sync_git_repo "${repo_url}" "${tag}" "${repo_dir}" || return 1
+  python3 "${resolver}" prepare "${repo_dir}" "${tag}"
 }

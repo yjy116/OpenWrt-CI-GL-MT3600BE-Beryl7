@@ -109,6 +109,7 @@ jobs:
         run: |
           set -euo pipefail
           bash Tests/check-honk-source.sh
+          timeout 60 python3 Tests/check-honk-release.py
           timeout 60 bash Tests/check-proxy-guard.sh
           timeout 60 bash Tests/check-proxy-packages.sh
           bash Tests/check-sane-scanner-compat.sh
@@ -222,6 +223,8 @@ jobs:
         env:
           TEST_ONLY: ${{ inputs.test_only && '1' || '0' }}
           BUILD_VERBOSE: 0
+          # 中文：仅用于查询上游正式 Release；解析脚本不会向资产下载主机发送令牌。
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           export JOBS="$(nproc)"
