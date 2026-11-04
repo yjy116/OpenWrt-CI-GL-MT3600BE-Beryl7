@@ -23,7 +23,8 @@ CONFIG_TARGET_ROOTFS_INITRAMFS=y
 # @vendor luci-app-easytier|https://github.com/EasyTier/luci-app-easytier.git|main|.:package/easytier-openwrt|
 # DAE/DAED 共用同一维护源，由 DAEDE 切换；Honk + Doona 单独管理，三者服务层互斥且默认关闭。
 # vmlinux-btf 仅提供依赖元数据，不选择编译；三个核心均使用本固件内核 BTF。
-# @vendor luci-app-daede|https://github.com/kenzok8/openwrt-daede.git|main|dae:package/dae;daed:package/daed;luci-app-daede:package/luci-app-daede;vmlinux-btf:package/vmlinux-btf|daede-modern
+# latest-stable 每次选择同一正式标签的两个核心和界面，校验发布清单、来源与 SHA256。
+# @vendor luci-app-daede|https://github.com/kenzok8/openwrt-daede.git|latest-stable|dae:package/dae;daed:package/daed;luci-app-daede:package/luci-app-daede;vmlinux-btf:package/vmlinux-btf|daede-modern
 # luci-app-honk 自带中文管理页与 Doona 前端。
 # latest-stable 每次解析上游最新正式 Release，同批核心/Doona 校验后才复制，不使用候选版或 staging/SKIP。
 # @vendor luci-app-honk|https://github.com/kenzok8/openwrt-honk.git|latest-stable|honk:package/honk;luci-app-honk:package/luci-app-honk|honk-release

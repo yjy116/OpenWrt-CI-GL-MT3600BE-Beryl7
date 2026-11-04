@@ -206,17 +206,25 @@ Config/MT3600BE.kernel.txt
 Doona 已包含在 `luci-app-honk` 中，不是需要另外勾选的 OpenWrt 包。
 Honk 是 Rust 实现的新核心，不是简单把原 DAE/DAED 改名。
 
-DAE 和 DAED 均使用 [kenzok8/openwrt-daede](https://github.com/kenzok8/openwrt-daede) 的
-`main` 打包源；`Scripts/Daede.sh` 核验版本、核心来源锁定值、SHA256 与中文资源契约。
-2026-10-13 核对的两者版本均为 `2026.09.24-r2`，DAEDE 为 `1.15-r9`：
+DAE、DAED 与 DAEDE 每次编译统一选择 [kenzok8/openwrt-daede 的最新正式 Release](https://github.com/kenzok8/openwrt-daede/releases/latest)，
+不再直接跟随 `main`。`GENERAL.txt` 中的 `latest-stable` 是本项目的发布策略，不是 Git 分支。
+三个包以及辅助 `vmlinux-btf` 包定义均取自同一个正式标签，排除草稿、候选版和源码素材标签。
+2026-11-04 核验的正式版为 `v2026.10.30-6ac53cb`：DAE/DAED 均为 `2026.10.30-r1`，DAEDE 为 `1.15-r13`；这些是核验快照，不是固定版本。
 
-- 独立 DAE：`daeuniverse/dae` 核心，装配时在性能分支基线 `be2b6047eff8...` 上合并官方提交 `6f2f2aa66084...`。
+- 独立 DAE：`daeuniverse/dae` 核心，装配时在性能分支基线 `be2b6047eff8...` 上合并官方提交 `29a70280fd7e...`。
 - DAED：`daeuniverse/daed` 前端 `be4ef873c352...` + `dae-wing` 后端 `b089b568649f...`，内嵌同一套 DAE 核心；不是调用另一个已运行的 `dae` 服务。
 - 编译从该维护源的 `dae-src`/`daed-src` 发布下载冻结源码并核对 `PKG_HASH`，随后本地 Go/eBPF 编译；源头由 `ci/pins.env` 与装配工作流共同记录。
 - DAEDE 自带中文翻译，不添加不存在的 `luci-i18n-daede-zh-cn`；保留内核 BTF，`vmlinux-btf` 只引入包定义消除缺依赖元数据警告，不编译、不安装影子内核 BTF。
 
-本次下载两份实际源码归档并验证 SHA256；独立 DAE 与 DAED 内嵌核心的共有文件中，
-只有 `go.mod/go.sum` 不同，独立 DAE 另含 `default.pgo`，其余核心源码内容一致。
+`Scripts/Daede.sh` 与 `Scripts/daede_release.py` 校验正式发布的 `manifest.json` SHA256，
+确认实际 checkout 提交与发布清单一致，并核对三个包的版本及发布资产摘要。
+两个核心依照同一标签的 `ci/pins.env` 和装配工作流使用配套来源，不分别追各核心仓库的最新提交。
+`dae-src` / `daed-src` 仅作为素材容器：只使用所选标签 Makefile 指定的归档文件及 SHA256，
+不会把素材标签本身当成正式版，也不动态选取其中“最新”的归档。
+本 CI 仍从这些冻结源码编译 DAE/DAED，不直接安装正式 Release 中的预编译 APK/IPK；OpenWrt 下载时再次验证 `PKG_HASH`。
+查询、源码版本或哈希校验失败会停止构建，不回退旧版或 `main`。日志记录实际正式标签、打包提交、三个包版本及核心来源锁定值。
+“正式”指本项目采用的打包维护源的正式发布，不等于 DAE/DAED 官方各自最新 Release，也不是实机稳定性保证。
+版本解析和资产校验复用 `Scripts/release_common.py`；默认关闭、中文界面、内核 BTF 与服务互斥规则不变。
 
 Honk + Doona 每次编译自动选择上游最新正式发布，并保持同批配套：
 

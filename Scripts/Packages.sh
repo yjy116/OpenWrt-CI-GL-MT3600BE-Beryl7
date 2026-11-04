@@ -272,6 +272,8 @@ prepare_custom_packages() {
     repo_dir="${VENDOR_ROOT}/${package_name}"
     if [[ "${hook}" == "honk-release" ]]; then
       sync_honk_release "${repo_url}" "${repo_branch}" "${repo_dir}"
+    elif [[ "${hook}" == "daede-modern" ]]; then
+      sync_daede_release "${repo_url}" "${repo_branch}" "${repo_dir}"
     else
       sync_git_repo "${repo_url}" "${repo_branch}" "${repo_dir}"
     fi

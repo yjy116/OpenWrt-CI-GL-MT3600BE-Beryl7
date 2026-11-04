@@ -1,5 +1,20 @@
 #!/usr/bin/env bash
 
+sync_daede_release() {
+  local repo_url="$1" policy="$2" repo_dir="$3" tag
+  local resolver="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/daede_release.py"
+
+  [[ "${repo_url}" == https://github.com/kenzok8/openwrt-daede.git && "${policy}" == latest-stable ]] || {
+    echo 'DAEDE requires the kenzok8/openwrt-daede latest-stable release policy.' >&2
+    return 1
+  }
+  # 中文：只解析一次最新正式标签；两个核心和界面统一取自此标签，不分别追 main。
+  tag="$(python3 "${resolver}" resolve)" || return 1
+  echo "Selected latest formal DAE/DAED/DAEDE release: ${tag}"
+  sync_git_repo "${repo_url}" "${tag}" "${repo_dir}" || return 1
+  python3 "${resolver}" prepare "${repo_dir}" "${tag}"
+}
+
 read_daede_pin() {
   awk -F= -v key="$2" '$1 == key { sub(/^[^=]*=/, ""); print; exit }' "$1"
 }

@@ -16,6 +16,10 @@ done
 config_package_enabled luci-app-daede
 config_package_enabled luci-app-honk
 config_package_enabled flock
+grep -Fqx '# @vendor luci-app-daede|https://github.com/kenzok8/openwrt-daede.git|latest-stable|dae:package/dae;daed:package/daed;luci-app-daede:package/luci-app-daede;vmlinux-btf:package/vmlinux-btf|daede-modern' "${GENERAL_CONFIG_FILE}" || {
+  echo 'DAE/DAED/DAEDE must track the same latest formal release, not main.' >&2
+  exit 1
+}
 grep -Fqx CONFIG_DAE_USE_KERNEL_BTF=y "${GENERAL_CONFIG_FILE}"
 grep -Fqx CONFIG_DAED_USE_KERNEL_BTF=y "${GENERAL_CONFIG_FILE}"
 grep -Fqx CONFIG_PACKAGE_vmlinux-btf=n "${GENERAL_CONFIG_FILE}"

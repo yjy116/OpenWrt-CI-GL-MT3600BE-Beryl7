@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "Scripts"))
 import honk_release as release
 import honk_release_fixture as fixtures
+from release_common import request_for
 
 
 class HonkReleaseTests(unittest.TestCase):
@@ -49,10 +50,10 @@ class HonkReleaseTests(unittest.TestCase):
         self.data["urls"][f"{fixtures.API}/releases/tags/{fixtures.TAG}"] = fixtures.encoded(self.data["release"])
 
     def test_latest_is_resolved_again_each_time(self):
-        self.assertEqual(release.latest_tag(self.fetch), fixtures.TAG)
+        self.assertEqual(release.SOURCE.latest_tag(self.fetch), fixtures.TAG)
         newer = dict(self.data["release"], tag_name="v2026.11.04-r42000000000")
         self.data["urls"][f"{fixtures.API}/releases/latest"] = fixtures.encoded(newer)
-        self.assertEqual(release.latest_tag(self.fetch), newer["tag_name"])
+        self.assertEqual(release.SOURCE.latest_tag(self.fetch), newer["tag_name"])
 
     def test_draft_and_prerelease_are_rejected(self):
         for field in ("draft", "prerelease"):
@@ -60,7 +61,7 @@ class HonkReleaseTests(unittest.TestCase):
                 candidate = dict(self.data["release"], **{field: True})
                 self.data["urls"][f"{fixtures.API}/releases/latest"] = fixtures.encoded(candidate)
                 with self.assertRaisesRegex(ValueError, "formal release"):
-                    release.latest_tag(self.fetch)
+                    release.SOURCE.latest_tag(self.fetch)
 
     def test_candidate_and_unsafe_tags_are_rejected(self):
         for tag in ("candidate-r123", "source-123", "main", "v1/../../main"):
@@ -68,13 +69,13 @@ class HonkReleaseTests(unittest.TestCase):
                 candidate = dict(self.data["release"], tag_name=tag)
                 self.data["urls"][f"{fixtures.API}/releases/latest"] = fixtures.encoded(candidate)
                 with self.assertRaises(ValueError):
-                    release.latest_tag(self.fetch)
+                    release.SOURCE.latest_tag(self.fetch)
 
     def test_missing_latest_has_no_fallback(self):
         def failed_fetch(url):
             raise HTTPError(url, 404, "Not Found", {}, None)
         with self.assertRaises(HTTPError):
-            release.latest_tag(failed_fetch)
+            release.SOURCE.latest_tag(failed_fetch)
 
     def test_formal_bundle_may_reference_source_prerelease(self):
         self.assertNotEqual(fixtures.TAG.split("-r")[-1], fixtures.SOURCE.split("-")[-1])
@@ -155,8 +156,8 @@ class HonkReleaseTests(unittest.TestCase):
 
     def test_redirect_does_not_send_token_to_asset_host(self):
         with patch.dict(os.environ, {"GH_TOKEN": "test"}):
-            request = release.request_for(fixtures.API + "/releases/latest")
-            asset_request = release.request_for(fixtures.SOURCE_URL + "/generated-stage.mk")
+            request = request_for(fixtures.API + "/releases/latest")
+            asset_request = request_for(fixtures.SOURCE_URL + "/generated-stage.mk")
         self.assertEqual(request.get_header("Authorization"), "Bearer test")
         self.assertIsNone(asset_request.get_header("Authorization"))
         redirected = HTTPRedirectHandler().redirect_request(
