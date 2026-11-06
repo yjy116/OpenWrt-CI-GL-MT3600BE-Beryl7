@@ -8,6 +8,7 @@ import re
 import subprocess
 import sys
 from release_common import ReleaseSource, assignments, fetch_url, read_assignments, require
+from honk_lifecycle import patch_lifecycle
 
 SOURCE = ReleaseSource("kenzok8/openwrt-honk", r"v\d{4}\.\d{2}\.\d{2}-r\d+")
 REPOSITORY = SOURCE.repository
@@ -101,6 +102,7 @@ def prepare(repo, tag):
     bundle = load_bundle(tag, fetch_url)
     commit = subprocess.check_output(["git", "-C", str(repo), "rev-parse", "HEAD"], text=True).strip()
     pins = validate_bundle(repo, bundle, commit)
+    patch_lifecycle(repo / "honk/files/lifecycle.sh")
     write_metadata(repo, bundle)
     print(f"Verified Honk formal release: {tag} ({commit})")
     print(f"Honk source: {pins['CORE_REPOSITORY']} @ {pins['CORE_COMMIT']}")
