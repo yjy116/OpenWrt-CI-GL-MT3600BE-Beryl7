@@ -63,6 +63,25 @@ class HonkReleaseTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "formal release"):
                     release.SOURCE.latest_tag(self.fetch)
 
+    def test_same_day_revision_resolves_and_validates_the_matched_bundle(self):
+        for tag in ("v2026.11.08-r2", "v2026.11.08.1-r1", "v2026.11.08.12-r3"):
+            with self.subTest(tag=tag):
+                self.data = fixtures.fixture(tag=tag)
+                self.assertEqual(release.SOURCE.latest_tag(self.fetch), tag)
+                bundle = release.load_bundle(tag, self.fetch)
+                release.validate_bundle(self.repo, bundle, fixtures.PACKAGE_COMMIT)
+
+    def test_same_day_revision_does_not_admit_prereleases_or_malformed_tags(self):
+        for tag in ("v2026.11.08.1-r1", "v2026.11.08.1.2-r1",
+                    "v2026.11.08.-r1", "v2026.11.08.fix-r1", "v2026.11.08.1-r1-rc1"):
+            with self.subTest(tag=tag):
+                self.data = fixtures.fixture(tag=tag)
+                if tag == "v2026.11.08.1-r1":
+                    candidate = dict(self.data["release"], prerelease=True)
+                    self.data["urls"][f"{fixtures.API}/releases/latest"] = fixtures.encoded(candidate)
+                with self.assertRaises(ValueError):
+                    release.SOURCE.latest_tag(self.fetch)
+
     def test_candidate_and_unsafe_tags_are_rejected(self):
         for tag in ("candidate-r123", "source-123", "main", "v1/../../main"):
             with self.subTest(tag=tag):

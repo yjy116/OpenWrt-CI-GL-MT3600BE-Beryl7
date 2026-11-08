@@ -10,7 +10,8 @@ import sys
 from release_common import ReleaseSource, assignments, fetch_url, read_assignments, require
 from honk_lifecycle import patch_lifecycle
 
-SOURCE = ReleaseSource("kenzok8/openwrt-honk", r"v\d{4}\.\d{2}\.\d{2}-r\d+")
+# 日期后可带同日程序修订号，末尾 r 仍表示打包修订号。
+SOURCE = ReleaseSource("kenzok8/openwrt-honk", r"v\d{4}\.\d{2}\.\d{2}(?:\.\d+)?-r\d+")
 REPOSITORY = SOURCE.repository
 API = SOURCE.api
 METADATA_FILES = (

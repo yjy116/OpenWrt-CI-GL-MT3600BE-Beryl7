@@ -228,6 +228,9 @@ DAE、DAED 与 DAEDE 每次编译统一选择 [kenzok8/openwrt-daede 的最新�
 
 Honk + Doona 每次编译自动选择上游最新正式发布，并保持同批配套：
 
+正式标签兼容 `vYYYY.MM.DD-rN` 和带同日程序修订号的 `vYYYY.MM.DD.N-rN`；
+仍排除草稿和预发布，不因格式兼容而跳过配套来源与哈希校验。
+
 - 打包源：[kenzok8/openwrt-honk](https://github.com/kenzok8/openwrt-honk/releases/latest)。`GENERAL.txt` 中的 `latest-stable` 是本项目的发布策略，不是 Git 分支；不选草稿、候选版或预发布包，也不直接追打包仓库 `main`。
 - 核心和前端版本以该正式标签下的 `ci/pins.env`、`release-manifest.json` 及源码元数据为准，不分别取两个项目的最新提交。
 - 2026-11-04 核验的正式包为 `v2026.11.03-r41604962306`：核心源 [daeuniverse/honk](https://github.com/daeuniverse/honk)，提交 `77176ff8e8cc2b75385a7030dc376536c382574a`；前端源 [Zakkaus/doona](https://github.com/Zakkaus/doona)，`0.1.0-rc.5`，提交 `46e153cf405ce665983794cf297fb5cf6d38084c`。这些是核验快照，不是固定版本。

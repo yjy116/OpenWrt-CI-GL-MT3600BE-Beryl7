@@ -24,7 +24,7 @@ def asset(name, payload, tag=SOURCE):
             "browser_download_url": f"{REPO}/releases/download/{tag}/{name}"}
 
 
-def fixture():
+def fixture(tag=TAG):
     payloads = {DOONA_ARCHIVE: b"doona archive"}
     core_make = f"CORE_COMMIT:={CORE_COMMIT}\nHONK_SOURCE_TAG?={SOURCE}\n"
     stage = f"PKG_SOURCE_URL:={SOURCE_URL}/\n"
@@ -47,14 +47,14 @@ def fixture():
                 "core_commit": CORE_COMMIT, "doona_commit": DOONA_COMMIT,
                 "doona_archive": DOONA_ARCHIVE, "doona_archive_sha256": doona_hash}
     manifest_data = encoded(manifest)
-    release = {"tag_name": TAG, "draft": False, "prerelease": False,
-               "assets": [asset("release-manifest.json", manifest_data, TAG)]}
+    release = {"tag_name": tag, "draft": False, "prerelease": False,
+               "assets": [asset("release-manifest.json", manifest_data, tag)]}
     source = {"tag_name": SOURCE, "draft": False, "prerelease": True,
               "assets": [asset(name, payload) for name, payload in payloads.items()]}
     urls = {f"{SOURCE_URL}/{name}": payload for name, payload in payloads.items()}
-    urls[f"{REPO}/releases/download/{TAG}/release-manifest.json"] = manifest_data
+    urls[f"{REPO}/releases/download/{tag}/release-manifest.json"] = manifest_data
     urls[f"{API}/releases/latest"] = encoded(release)
-    urls[f"{API}/releases/tags/{TAG}"] = encoded(release)
+    urls[f"{API}/releases/tags/{tag}"] = encoded(release)
     urls[f"{API}/releases/tags/{SOURCE}"] = encoded(source)
     pins = (f"CORE_COMMIT={CORE_COMMIT}\nCORE_REPOSITORY={CORE_REPO}\n"
             f"DOONA_COMMIT={DOONA_COMMIT}\nDOONA_REPOSITORY=https://github.com/Zakkaus/doona.git\n"
