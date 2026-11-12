@@ -18,7 +18,7 @@ require_line 'CONFIG_PACKAGE_luci-app-honk=y' "${general_config}"
 for package in luci-app-dae luci-app-daed; do
   require_line "CONFIG_PACKAGE_${package}=n" "${general_config}"
 done
-require_line '# @vendor luci-app-honk|https://github.com/kenzok8/openwrt-honk.git|latest-stable|honk:package/honk;luci-app-honk:package/luci-app-honk|honk-release' "${general_config}"
+require_line '# @vendor luci-app-honk|https://github.com/kenzok8/openwrt-honk.git|main|honk:package/honk;luci-app-honk:package/luci-app-honk|honk-main' "${general_config}"
 test ! -e "${project_root}/files/lib/upgrade/keep.d/daed"
 require_line '/etc/honk/' "${project_root}/files/lib/upgrade/keep.d/honk"
 
@@ -59,9 +59,40 @@ source "${project_root}/Scripts/Packages.sh"
   test ! -e "${test_dir}/stale-checkout"
 )
 
-# 中文：可选真实上游源码验证；离线校验异常场景由 check-honk-release.py 覆盖。
+# 中文：主线同步失败必须上抛；成功后只校验本次提交，不能再查 Latest 或复用旧提交。
+(
+  sync_git_repo() {
+    [[ "$2" == main ]] || return 1
+    return "${sync_result}"
+  }
+  git() { printf '%s\n' "${expected_commit}"; }
+  python3() {
+    [[ "$1" == */honk_source.py && "$2" == prepare && "$4" == "${expected_commit}" ]] || return 1
+    printf '%s\n' "$4" >> "${test_dir}/verified-commits"
+  }
+  sync_result=128
+  expected_commit=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  if sync_honk_main https://github.com/kenzok8/openwrt-honk.git main "${test_dir}/repo"; then
+    echo 'Honk hid a failed main fetch.' >&2
+    exit 1
+  fi
+  test ! -e "${test_dir}/verified-commits"
+  sync_result=0
+  sync_honk_main https://github.com/kenzok8/openwrt-honk.git main "${test_dir}/repo"
+  expected_commit=bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+  sync_honk_main https://github.com/kenzok8/openwrt-honk.git main "${test_dir}/repo"
+  require_line aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa "${test_dir}/verified-commits"
+  require_line bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb "${test_dir}/verified-commits"
+  python3() { return 1; }
+  if sync_honk_main https://github.com/kenzok8/openwrt-honk.git main "${test_dir}/repo"; then
+    echo 'Honk hid a failed source verification.' >&2
+    exit 1
+  fi
+)
+
+# 中文：可选真实上游源码验证；离线校验异常场景由 check-honk-main.py 覆盖。
 if [[ -n "${HONK_SOURCE_DIR:-}" ]]; then
-  sync_honk_release https://github.com/kenzok8/openwrt-honk.git latest-stable "${HONK_SOURCE_DIR}"
+  sync_honk_main https://github.com/kenzok8/openwrt-honk.git main "${HONK_SOURCE_DIR}"
   grep -Fq 'honk.zh-cn.lmo' "${HONK_SOURCE_DIR}/luci-app-honk/Makefile"
   grep -Fq "option enabled '0'" "${HONK_SOURCE_DIR}/honk/files/honk.config"
   grep -Fq "option boot_enabled '0'" "${HONK_SOURCE_DIR}/honk/files/honk.config"

@@ -109,7 +109,7 @@ jobs:
         run: |
           set -euo pipefail
           bash Tests/check-honk-source.sh
-          timeout 60 python3 Tests/check-honk-release.py
+          timeout 60 python3 Tests/check-honk-main.py
           timeout 60 python3 Tests/check-honk-lifecycle.py
           timeout 60 python3 Tests/check-daede-release.py
           timeout 60 bash Tests/check-proxy-guard.sh

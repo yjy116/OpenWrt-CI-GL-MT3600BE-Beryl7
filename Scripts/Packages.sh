@@ -64,7 +64,7 @@ run_vendor_hook() {
   local tailscale_makefile
 
   case "${hook}" in
-    ""|none|honk-release)
+    ""|none|honk-main)
       ;;
     daede-modern)
       validate_daede_source "${repo_dir}"
@@ -270,8 +270,8 @@ prepare_custom_packages() {
     fi
 
     repo_dir="${VENDOR_ROOT}/${package_name}"
-    if [[ "${hook}" == "honk-release" ]]; then
-      sync_honk_release "${repo_url}" "${repo_branch}" "${repo_dir}"
+    if [[ "${hook}" == "honk-main" ]]; then
+      sync_honk_main "${repo_url}" "${repo_branch}" "${repo_dir}"
     elif [[ "${hook}" == "daede-modern" ]]; then
       sync_daede_release "${repo_url}" "${repo_branch}" "${repo_dir}"
     else

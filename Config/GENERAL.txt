@@ -26,8 +26,8 @@ CONFIG_TARGET_ROOTFS_INITRAMFS=y
 # latest-stable 每次选择同一正式标签的两个核心和界面，校验发布清单、来源与 SHA256。
 # @vendor luci-app-daede|https://github.com/kenzok8/openwrt-daede.git|latest-stable|dae:package/dae;daed:package/daed;luci-app-daede:package/luci-app-daede;vmlinux-btf:package/vmlinux-btf|daede-modern
 # luci-app-honk 自带中文管理页与 Doona 前端。
-# latest-stable 每次解析上游最新正式 Release，同批核心/Doona 校验后才复制，不使用候选版或 staging/SKIP。
-# @vendor luci-app-honk|https://github.com/kenzok8/openwrt-honk.git|latest-stable|honk:package/honk;luci-app-honk:package/luci-app-honk|honk-release
+# main 每次获取最新打包提交，按其 pins 与 Makefile 校验配套核心/Doona，不使用全局 Latest 或 staging/SKIP。
+# @vendor luci-app-honk|https://github.com/kenzok8/openwrt-honk.git|main|honk:package/honk;luci-app-honk:package/luci-app-honk|honk-main
 # @vendor autocore|https://github.com/immortalwrt/immortalwrt.git|master|package/emortal/autocore:package/autocore|
 # @vendor automount|https://github.com/immortalwrt/immortalwrt.git|master|package/emortal/automount:package/automount|
 # @vendor cpufreq|https://github.com/immortalwrt/immortalwrt.git|master|package/emortal/cpufreq:package/cpufreq|

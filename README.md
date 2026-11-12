@@ -226,29 +226,27 @@ DAE、DAED 与 DAEDE 每次编译统一选择 [kenzok8/openwrt-daede 的最新�
 “正式”指本项目采用的打包维护源的正式发布，不等于 DAE/DAED 官方各自最新 Release，也不是实机稳定性保证。
 版本解析和资产校验复用 `Scripts/release_common.py`；默认关闭、中文界面、内核 BTF 与服务互斥规则不变。
 
-Honk + Doona 每次编译自动选择上游最新正式发布，并保持同批配套：
+Honk + Doona 每次编译跟随打包仓库最新 `main`，保持该提交指定的配套版本：
 
-正式标签兼容 `vYYYY.MM.DD-rN` 和带同日程序修订号的 `vYYYY.MM.DD.N-rN`；
-仍排除草稿和预发布，不因格式兼容而跳过配套来源与哈希校验。
+- 打包源：[kenzok8/openwrt-honk 的 main](https://github.com/kenzok8/openwrt-honk/tree/main)。每次重新拉取，记录实际提交，不查询全仓库 `/releases/latest`，避免误选 `linux66-*` 实验通道。
+- 核心和前端以该提交的 `ci/pins.env`、两个 Makefile 和素材元数据为准，不分别追 Honk/Doona 核心仓库的最新提交。
+- Honk 核心来源为 [daeuniverse/honk](https://github.com/daeuniverse/honk)，Doona 前端来源为 [Zakkaus/doona](https://github.com/Zakkaus/doona)。版本随打包主线更新，可能包含 beta/RC，不是实机稳定性保证。
+- 沿用维护者的预编译核心及 Doona 归档，不在 Runner 上增加 Rust 编译，也不要求打包提交已经发布正式 Release。
 
-- 打包源：[kenzok8/openwrt-honk](https://github.com/kenzok8/openwrt-honk/releases/latest)。`GENERAL.txt` 中的 `latest-stable` 是本项目的发布策略，不是 Git 分支；不选草稿、候选版或预发布包，也不直接追打包仓库 `main`。
-- 核心和前端版本以该正式标签下的 `ci/pins.env`、`release-manifest.json` 及源码元数据为准，不分别取两个项目的最新提交。
-- 2026-11-04 核验的正式包为 `v2026.11.03-r41604962306`：核心源 [daeuniverse/honk](https://github.com/daeuniverse/honk)，提交 `77176ff8e8cc2b75385a7030dc376536c382574a`；前端源 [Zakkaus/doona](https://github.com/Zakkaus/doona)，`0.1.0-rc.5`，提交 `46e153cf405ce665983794cf297fb5cf6d38084c`。这些是核验快照，不是固定版本。
-- “稳定”指打包维护者标记的正式 Release，内部组件仍可能为 RC/测试版本，不代表路由器运行稳定性保证。上游预编译核心与 Doona 归档，本 CI 校验后打包，不在 Runner 上重新编译 Honk Rust 源码。
-
-`Scripts/Honk.sh` 与 `Scripts/honk_release.py` 每次重新查询最新正式标签，拉取该标签源码，
-验证打包提交、核心/Doona 提交、来源与三个生成文件的 SHA256，再复制到构建树。
-`source-*` 素材批次由正式包清单指定，即使上游将素材批次标为预发布也可使用；不能根据正式标签的数字后缀推算。
-素材文件的哈希同时与 Makefile、GitHub 资产摘要交叉核对，OpenWrt 下载实际核心及前端时再次验证 SHA256。
-旧 vendor 目录中的生成文件会被本批已验证文件替换；下载缓存不会锁定插件版本，也无需每次清缓存。
-API 查询、源码关联或哈希校验失败会明确停止构建，不回退旧版、`staging` 或 `SKIP`。
-日志输出实际正式标签、打包提交、核心和 Doona 来源/提交以及素材批次，便于追溯。
+`Scripts/Honk.sh` 拉取主线并记录提交，`Scripts/honk_source.py` 核验源码及配套素材后再复制到构建树。
+两个 Makefile 必须引用同一 `source-*` 批次；该素材批次可标为预发布，但不能是未发布草稿。
+核心归档名、来源提交、标准通道与 SHA256 要与 pins、Makefile、生成文件和 GitHub 资产摘要一致。
+Doona 还会下载归档并只读检查 `doona/SOURCE`，核对前端仓库、提交、版本及构建补丁哈希，不执行归档内容。
+OpenWrt 下载实际核心和前端时再次验证 SHA256；旧 vendor 生成文件仅在全部核验通过后替换。
+上游若尚未上传当前提交引用的素材、网络请求失败或校验不一致，构建明确报错，不退回旧提交、旧正式版、`staging` 或 `SKIP`。
+素材上传完成后可重新运行，无需为了追新版本每次清空下载缓存。
+日志输出实际打包提交、核心和 Doona 来源/提交以及素材批次，便于追溯。
 CI 使用 `github.token` 查询 API，本地运行可通过 `GH_TOKEN` 或 `GITHUB_TOKEN` 提供令牌以避免匿名限额。
-此策略仅影响 Honk/Doona，不改变稳定 WiFi 选项，也不修改 WED 实验分支。
+此策略仅影响 Honk/Doona；DAE/DAED/DAEDE 仍跟随最新正式 Release，稳定 WiFi、PPE 和 WED 实验分支不变。
 
 Honk 启动兼容修复：上游部分版本用 `timeout 0.25 sleep 1` 轮询核心就绪，
 BusyBox 的 `timeout` 不接受小数，错误又被隐藏，导致等待预算过早耗尽并停止尚在加载 eBPF 的核心。
-`Scripts/honk_lifecycle.py` 在正式发布校验后，仅对该已知脚本结构改用 `sleep 1`，
+`Scripts/honk_lifecycle.py` 在打包源码及素材校验后，仅对该已知脚本结构改用 `sleep 1`，
 同步每秒扣减预算，保留原超时、就绪验证和服务互斥，不绕过启动失败，也不延长预算。
 上游 `v2026.11.08-r42491861714` 已增加实际耗时检测：不支持小数 `timeout` 时按秒等待和扣减预算。
 CI 核验该检测、调用、等待与预算逻辑配套后保留上游文件，不再重复套用旧补丁。

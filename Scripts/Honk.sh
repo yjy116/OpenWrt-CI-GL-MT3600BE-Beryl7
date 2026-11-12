@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 
-# 中文：每次构建解析最新正式发布，核心与 Doona 必须使用该发布指定的同一批资产。
+# 中文：每次构建拉取打包主线，核心与 Doona 必须使用该提交指定的同一批资产。
 
 HONK_REQUIRED_CONFIG_SYMBOLS=(
   "CONFIG_PACKAGE_honk=y"
@@ -46,16 +46,16 @@ validate_honk_config_symbols() {
   fi
 }
 
-sync_honk_release() {
-  local repo_url="$1" policy="$2" repo_dir="$3" tag
-  local resolver="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/honk_release.py"
+sync_honk_main() {
+  local repo_url="$1" branch="$2" repo_dir="$3" commit
+  local verifier="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)/honk_source.py"
 
-  [[ "${repo_url}" == https://github.com/kenzok8/openwrt-honk.git && "${policy}" == latest-stable ]] || {
-    echo 'Honk requires the kenzok8/openwrt-honk latest-stable release policy.' >&2
+  [[ "${repo_url}" == https://github.com/kenzok8/openwrt-honk.git && "${branch}" == main ]] || {
+    echo 'Honk requires the kenzok8/openwrt-honk main packaging branch.' >&2
     return 1
   }
-  tag="$(python3 "${resolver}" resolve)" || return 1
-  echo "Selected latest formal Honk/Doona release: ${tag}"
-  sync_git_repo "${repo_url}" "${tag}" "${repo_dir}" || return 1
-  python3 "${resolver}" prepare "${repo_dir}" "${tag}"
+  sync_git_repo "${repo_url}" "${branch}" "${repo_dir}" || return 1
+  commit="$(git -C "${repo_dir}" rev-parse HEAD)" || return 1
+  echo "Selected Honk/Doona packaging main: ${commit}"
+  python3 "${verifier}" prepare "${repo_dir}" "${commit}"
 }

@@ -15,8 +15,8 @@ from unittest.mock import patch
 sys.dont_write_bytecode = True
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "Scripts"))
-import honk_release as release
-import honk_release_fixture as fixtures
+import honk_source as release
+import honk_source_fixture as fixtures
 
 FIXTURE = Path(__file__).resolve().parent / "fixtures/honk-polling.sh"
 DETECTED_FIXTURE = FIXTURE.with_name("honk-polling-detected.sh")
@@ -40,7 +40,7 @@ class HonkLifecycleTests(unittest.TestCase):
         with patch.object(release, "fetch_url", side_effect=self.data["urls"].__getitem__), \
                 patch.object(release.subprocess, "check_output", return_value=fixtures.PACKAGE_COMMIT), \
                 contextlib.redirect_stdout(io.StringIO()):
-            release.prepare(self.repo, fixtures.TAG)
+            release.prepare(self.repo, fixtures.PACKAGE_COMMIT)
 
     def poll(self, ready_at, *, fail_sleep=False, fractional_timeout=False):
         # 中文：只替换 BusyBox 不支持小数的命令边界；sleep 使用真实系统等待。
