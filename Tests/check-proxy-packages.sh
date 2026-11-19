@@ -16,10 +16,38 @@ done
 config_package_enabled luci-app-daede
 config_package_enabled luci-app-honk
 config_package_enabled flock
-grep -Fqx '# @vendor luci-app-daede|https://github.com/kenzok8/openwrt-daede.git|latest-stable|dae:package/dae;daed:package/daed;luci-app-daede:package/luci-app-daede;vmlinux-btf:package/vmlinux-btf|daede-modern' "${GENERAL_CONFIG_FILE}" || {
+vendor_line="$(grep '^# @vendor luci-app-daede|' "${GENERAL_CONFIG_FILE}")"
+IFS='|' read -r vendor_name vendor_url vendor_policy copy_specs vendor_hook <<< "${vendor_line}"
+[[ "${vendor_url}" == https://github.com/kenzok8/openwrt-daede.git && \
+   "${vendor_policy}" == latest-stable && "${vendor_hook}" == daede-modern ]] || {
   echo 'DAE/DAED/DAEDE must track the same latest formal release, not main.' >&2
   exit 1
 }
+# 中文：执行真实导入映射，避免只复制包目录却遗漏 Build/Prepare 必需的共享补丁。
+(
+  BUILD_ROOT="${test_dir}/layout"
+  vendor="${test_dir}/layout-vendor"
+  patch_name=0001-keep-protocol-wrappers-in-tcp-relay.patch
+  mkdir -p "${vendor}/ci/patches/dae-core"
+  printf 'shared patch from the selected release\n' > "${vendor}/ci/patches/dae-core/${patch_name}"
+  for package in dae daed luci-app-daede vmlinux-btf; do
+    mkdir -p "${vendor}/${package}"
+    printf '%s\n' "${package}" > "${vendor}/${package}/Makefile"
+  done
+  copy_vendor_specs "${vendor}" "${copy_specs}"
+  for package in dae daed luci-app-daede vmlinux-btf; do
+    cmp "${vendor}/${package}/Makefile" "${BUILD_ROOT}/package/${package}/Makefile"
+  done
+  for backend in dae daed; do
+    patch_file="${BUILD_ROOT}/package/${backend}/../ci/patches/dae-core/${patch_name}"
+    test -s "${patch_file}" || { echo "${backend}: required shared patch missing after vendor import" >&2; exit 1; }
+    cmp "${vendor}/ci/patches/dae-core/${patch_name}" "${patch_file}"
+  done
+  # 中文：复用构建目录时必须替换整批补丁，不能混用上一次发布的残留文件。
+  printf 'obsolete\n' > "${BUILD_ROOT}/package/ci/patches/dae-core/obsolete.patch"
+  copy_vendor_specs "${vendor}" "${copy_specs}"
+  test ! -e "${BUILD_ROOT}/package/ci/patches/dae-core/obsolete.patch"
+)
 grep -Fqx CONFIG_DAE_USE_KERNEL_BTF=y "${GENERAL_CONFIG_FILE}"
 grep -Fqx CONFIG_DAED_USE_KERNEL_BTF=y "${GENERAL_CONFIG_FILE}"
 grep -Fqx CONFIG_PACKAGE_vmlinux-btf=n "${GENERAL_CONFIG_FILE}"

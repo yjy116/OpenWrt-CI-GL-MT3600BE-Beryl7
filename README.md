@@ -209,6 +209,9 @@ Honk 是 Rust 实现的新核心，不是简单把原 DAE/DAED 改名。
 DAE、DAED 与 DAEDE 每次编译统一选择 [kenzok8/openwrt-daede 的最新正式 Release](https://github.com/kenzok8/openwrt-daede/releases/latest)，
 不再直接跟随 `main`。`GENERAL.txt` 中的 `latest-stable` 是本项目的发布策略，不是 Git 分支。
 三个包以及辅助 `vmlinux-btf` 包定义均取自同一个正式标签，排除草稿、候选版和源码素材标签。
+DAE/DAED 共用的 `ci/patches/dae-core` 也从该标签同步到 `package/ci/patches/dae-core`，
+保留上游 Makefile 的相对路径。不能只复制四个包目录，否则新版会在 `Build/Prepare` 检查共享补丁时失败。
+每次导入替换整批共享补丁，不混用旧文件；这不是增加本地核心补丁，也不改变版本选择策略。
 2026-11-04 核验的正式版为 `v2026.10.30-6ac53cb`：DAE/DAED 均为 `2026.10.30-r1`，DAEDE 为 `1.15-r13`；这些是核验快照，不是固定版本。
 
 - 独立 DAE：`daeuniverse/dae` 核心，装配时在性能分支基线 `be2b6047eff8...` 上合并官方提交 `29a70280fd7e...`。
