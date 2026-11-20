@@ -1,0 +1,602 @@
+Subject: [PATCH] mt7996: quiesce WED and retire local full-reset flow templates
+
+Adapted from Shi Jiayang's OpenWrt PR #26802, commit
+597f208546756a014ab8fc7d9dc02f206f274ad6, mt76 patches 112-114.
+基于 mt76 018f603 的旧关联接口移植；保留原文件许可证。
+复位不成功时不开放队列，不让旧流模板重新绑定已复用的无线编号。
+
+diff --git a/dma.c b/dma.c
+index ff7e6ca..6137f1f 100644
+--- a/dma.c
++++ b/dma.c
+@@ -1234,7 +1234,8 @@ void mt76_dma_cleanup(struct mt76_dev *dev)
+ 	mt76_for_each_q_rx(dev, i) {
+ 		struct mt76_queue *q = &dev->q_rx[i];
+ 
+-		netif_napi_del(&dev->napi[i]);
++		if (dev->napi[i].dev)
++			netif_napi_del(&dev->napi[i]);
+ 		mt76_dma_rx_cleanup(dev, q);
+ 
+ 		page_pool_destroy(q->page_pool);
+diff --git a/mt76.h b/mt76.h
+index 42c7e44..7ece5bc 100644
+--- a/mt76.h
++++ b/mt76.h
+@@ -1257,6 +1257,24 @@ void mt76_wed_dma_reset(struct mt76_dev *dev);
+ int mt76_wed_net_setup_tc(struct ieee80211_hw *hw, struct ieee80211_vif *vif,
+ 			  struct net_device *netdev, enum tc_setup_type type,
+ 			  void *type_data);
++static inline bool mt76_wed_is_v3_1(struct mtk_wed_device *wed)
++{
++#ifdef CONFIG_NET_MEDIATEK_SOC_WED
++	return wed->version == MTK_WED_HW_V3_1;
++#else
++	return false;
++#endif
++}
++
++static inline int mt76_wed_device_dma_reset(struct mtk_wed_device *wed)
++{
++#ifdef CONFIG_NET_MEDIATEK_SOC_WED
++	return mtk_wed_device_dma_reset(wed);
++#else
++	return 0;
++#endif
++}
++
+ #ifdef CONFIG_NET_MEDIATEK_SOC_WED
+ u32 mt76_wed_init_rx_buf(struct mtk_wed_device *wed, int size);
+ int mt76_wed_offload_enable(struct mtk_wed_device *wed);
+diff --git a/mt7996/dma.c b/mt7996/dma.c
+index 9ccf429..80d97b3 100644
+--- a/mt7996/dma.c
++++ b/mt7996/dma.c
+@@ -130,7 +130,7 @@ static void mt7996_dma_config(struct mt7996_dev *dev)
+ 	}
+ 
+ 	/* WED3.1 delivers both bands through a dedicated host RX ring. */
+-	if (mtk_wed_device_active(wed) && wed->version == MTK_WED_HW_V3_1) {
++	if (mtk_wed_device_active(wed) && mt76_wed_is_v3_1(wed)) {
+ 		if (is_mt7996(&dev->mt76))
+ 			RXQ_CONFIG(MT_RXQ_WED_RX_DATA, WFDMA0,
+ 				   MT_INT_RX_DONE_WED_RX_DATA_MT7996, MT7996_TXQ_WED_RX);
+@@ -366,7 +366,7 @@ void mt7996_dma_start(struct mt7996_dev *dev, bool reset, bool wed_reset)
+ 
+ 	if (mtk_wed_device_active(wed)) {
+ 		irq_mask |= MT_INT_TX_DONE_BAND0 | MT_INT_TX_DONE_BAND1;
+-		if (wed->version == MTK_WED_HW_V3_1)
++		if (mt76_wed_is_v3_1(wed))
+ 			irq_mask |= MT_INT_RX(MT_RXQ_WED_RX_DATA);
+ 	}
+ 
+@@ -644,7 +644,7 @@ void mt7996_dma_rro_start(struct mt7996_dev *dev)
+ 	if (mtk_wed_device_active(&dev->mt76.mmio.wed)) {
+ 		irq_mask = dev->mt76.mmio.irqmask |
+ 			   MT_INT_TX_DONE_BAND2;
+-		if (dev->mt76.mmio.wed.version == MTK_WED_HW_V3_1)
++		if (mt76_wed_is_v3_1(&dev->mt76.mmio.wed))
+ 			irq_mask |= MT_INT_RX(MT_RXQ_WED_RX_DATA);
+ 
+ 		mt76_wr(dev, MT_INT_MASK_CSR, irq_mask);
+@@ -688,7 +688,7 @@ static int mt7996_dma_wed_rx_init(struct mt7996_dev *dev)
+ 	u32 rx_base;
+ 
+ 	if (!mtk_wed_device_active(wed) || !mtk_wed_get_rx_capa(wed) ||
+-	    wed->version != MTK_WED_HW_V3_1)
++	    !mt76_wed_is_v3_1(wed))
+ 		return 0;
+ 
+ 	q->flags = MT_WED_Q_RX(0);
+@@ -778,7 +778,7 @@ int mt7996_dma_init(struct mt7996_dev *dev)
+ 
+ 	/* rx data queue for band0 and mt7996 band1 */
+ 	if (mtk_wed_device_active(wed) && mtk_wed_get_rx_capa(wed) &&
+-	    wed->version != MTK_WED_HW_V3_1) {
++	    !mt76_wed_is_v3_1(wed)) {
+ 		dev->mt76.q_rx[MT_RXQ_MAIN].flags = MT_WED_Q_RX(0);
+ 		dev->mt76.q_rx[MT_RXQ_MAIN].wed = wed;
+ 	}
+@@ -872,7 +872,7 @@ int mt7996_dma_init(struct mt7996_dev *dev)
+ 		/* rx data queue for mt7992 band1 */
+ 		rx_base = MT_RXQ_RING_BASE(MT_RXQ_BAND1) + hif1_ofs;
+ 		if (mtk_wed_device_active(wed) && mtk_wed_get_rx_capa(wed) &&
+-		    wed->version != MTK_WED_HW_V3_1) {
++		    !mt76_wed_is_v3_1(wed)) {
+ 			dev->mt76.q_rx[MT_RXQ_BAND1].flags = MT_WED_Q_RX(1);
+ 			dev->mt76.q_rx[MT_RXQ_BAND1].wed = wed;
+ 		}
+@@ -1003,12 +1003,20 @@ int mt7996_dma_init(struct mt7996_dev *dev)
+ 	return 0;
+ }
+ 
+-void mt7996_dma_reset(struct mt7996_dev *dev, bool force)
++int mt7996_dma_reset(struct mt7996_dev *dev, bool force)
+ {
+ 	struct mt76_phy *phy2 = dev->mt76.phys[MT_BAND1];
+ 	struct mt76_phy *phy3 = dev->mt76.phys[MT_BAND2];
+ 	u32 hif1_ofs = MT_WFDMA0_PCIE1(0) - MT_WFDMA0(0);
+-	int i;
++	int i, ret = 0, err;
++
++	/* Quiesce external DMA before cleaning queues or resetting WFSYS. */
++	if (force) {
++		if (mtk_wed_device_active(&dev->mt76.mmio.wed_hif2))
++			mtk_wed_device_stop(&dev->mt76.mmio.wed_hif2);
++		if (mtk_wed_device_active(&dev->mt76.mmio.wed))
++			mtk_wed_device_stop(&dev->mt76.mmio.wed);
++	}
+ 
+ 	mt76_clear(dev, MT_WFDMA0_GLO_CFG,
+ 		   MT_WFDMA0_GLO_CFG_TX_DMA_EN |
+@@ -1021,6 +1029,12 @@ void mt7996_dma_reset(struct mt7996_dev *dev, bool force)
+ 
+ 	usleep_range(1000, 2000);
+ 
++	if (force) {
++		/* WED 和 WLAN DMA 均已停下，此时才能归还未完成的 TX token。 */
++		mt7996_tx_token_put(dev);
++		idr_init(&dev->mt76.token);
++	}
++
+ 	for (i = 0; i < __MT_TXQ_MAX; i++) {
+ 		mt76_queue_tx_cleanup(dev, dev->mphy.q_tx[i], true);
+ 		if (phy2)
+@@ -1046,14 +1060,19 @@ void mt7996_dma_reset(struct mt7996_dev *dev, bool force)
+ 		mt7996_wfsys_reset(dev);
+ 
+ 	if (dev->hif2 && mtk_wed_device_active(&dev->mt76.mmio.wed_hif2))
+-		mtk_wed_device_dma_reset(&dev->mt76.mmio.wed_hif2);
++		ret = mt76_wed_device_dma_reset(&dev->mt76.mmio.wed_hif2);
+ 
+-	if (mtk_wed_device_active(&dev->mt76.mmio.wed))
+-		mtk_wed_device_dma_reset(&dev->mt76.mmio.wed);
++	if (mtk_wed_device_active(&dev->mt76.mmio.wed)) {
++		err = mt76_wed_device_dma_reset(&dev->mt76.mmio.wed);
++		if (!ret)
++			ret = err;
++	}
+ 
+ 	mt76_npu_disable_irqs(&dev->mt76);
+ 	mt7996_dma_disable(dev, force);
+ 	mt76_wed_dma_reset(&dev->mt76);
++	if (ret)
++		return ret;
+ 
+ 	/* reset hw queues */
+ 	for (i = 0; i < __MT_TXQ_MAX; i++) {
+@@ -1094,6 +1113,8 @@ void mt7996_dma_reset(struct mt7996_dev *dev, bool force)
+ 	}
+ 
+ 	mt7996_dma_enable(dev, !force);
++
++	return 0;
+ }
+ 
+ void mt7996_dma_cleanup(struct mt7996_dev *dev)
+diff --git a/mt7996/init.c b/mt7996/init.c
+index f9f0900..36504b8 100644
+--- a/mt7996/init.c
++++ b/mt7996/init.c
+@@ -1799,6 +1799,8 @@ error:
+ 
+ void mt7996_unregister_device(struct mt7996_dev *dev)
+ {
++	int i;
++
+ 	cancel_work_sync(&dev->dump_work);
+ 	cancel_work_sync(&dev->wed_rro.work);
+ 	mt7996_unregister_phy(mt7996_phy3(dev));
+@@ -1806,6 +1808,14 @@ void mt7996_unregister_device(struct mt7996_dev *dev)
+ 	mt7996_unregister_thermal(&dev->phy);
+ 	mt7996_coredump_unregister(dev);
+ 	mt76_unregister_device(&dev->mt76);
++	if (mtk_wed_device_active(&dev->mt76.mmio.wed_hif2))
++		mtk_wed_device_stop(&dev->mt76.mmio.wed_hif2);
++	if (mtk_wed_device_active(&dev->mt76.mmio.wed))
++		mtk_wed_device_stop(&dev->mt76.mmio.wed);
++	for (i = 0; i < ARRAY_SIZE(dev->mt76.napi); i++) {
++		if (dev->mt76.napi[i].dev)
++			napi_disable(&dev->mt76.napi[i]);
++	}
+ 	mt7996_wed_rro_free(dev);
+ 	mt7996_mcu_exit(dev);
+ 	mt7996_tx_token_put(dev);
+diff --git a/mt7996/mac.c b/mt7996/mac.c
+index 354b101..2fbaaa3 100644
+--- a/mt7996/mac.c
++++ b/mt7996/mac.c
+@@ -4,7 +4,9 @@
+  */
+ 
+ #include <linux/etherdevice.h>
++#include <linux/rtnetlink.h>
+ #include <linux/timekeeping.h>
++#include <net/netfilter/nf_flow_table.h>
+ #include "coredump.h"
+ #include "mt7996.h"
+ #include "../dma.h"
+@@ -2234,14 +2236,16 @@ void mt7996_tx_token_put(struct mt7996_dev *dev)
+ 		mt7996_txwi_free(dev, txwi, NULL, NULL, NULL);
+ 		dev->mt76.token_count--;
+ 	}
+-	spin_unlock_bh(&dev->mt76.token_lock);
+ 	idr_destroy(&dev->mt76.token);
++	dev->mt76.wed_token_count = 0;
++	spin_unlock_bh(&dev->mt76.token_lock);
+ 
+ 	for (id = 0; id < __MT_MAX_BAND; id++) {
+ 		struct mt76_phy *phy = dev->mt76.phys[id];
+ 		if (phy)
+ 			atomic_set(&phy->mgmt_tx_pending, 0);
+ 	}
++	wake_up(&dev->mt76.tx_wait);
+ }
+ 
+ static int
+@@ -2283,11 +2287,7 @@ mt7996_mac_restart(struct mt7996_dev *dev)
+ 	}
+ 	napi_disable(&dev->mt76.tx_napi);
+ 
+-	/* token reinit */
+-	mt7996_tx_token_put(dev);
+-	idr_init(&dev->mt76.token);
+-
+-	mt7996_dma_reset(dev, true);
++	ret = mt7996_dma_reset(dev, true);
+ 
+ 	mt76_for_each_q_rx(mdev, i) {
+ 		if (mtk_wed_device_active(&dev->mt76.mmio.wed) &&
+@@ -2296,11 +2296,16 @@ mt7996_mac_restart(struct mt7996_dev *dev)
+ 
+ 		if (mdev->q_rx[i].ndesc) {
+ 			napi_enable(&dev->mt76.napi[i]);
++			if (ret)
++				continue;
+ 			local_bh_disable();
+ 			napi_schedule(&dev->mt76.napi[i]);
+ 			local_bh_enable();
+ 		}
+ 	}
++	if (ret)
++		goto out;
++
+ 	clear_bit(MT76_MCU_RESET, &dev->mphy.state);
+ 	clear_bit(MT76_STATE_MCU_RUNNING, &dev->mphy.state);
+ 
+@@ -2334,7 +2339,7 @@ mt7996_mac_restart(struct mt7996_dev *dev)
+ 				mt76_queue_rx_reset(dev, i);
+ 		}
+ 
+-		if (dev->mt76.mmio.wed.version == MTK_WED_HW_V3_1)
++		if (mt76_wed_is_v3_1(&dev->mt76.mmio.wed))
+ 			wed_irq_mask |= MT_INT_RX(MT_RXQ_WED_RX_DATA);
+ 		mt76_wr(dev, MT_INT_MASK_CSR, wed_irq_mask);
+ 		mtk_wed_device_start_hw_rro(&dev->mt76.mmio.wed, wed_irq_mask,
+@@ -2373,13 +2378,16 @@ mt7996_mac_restart(struct mt7996_dev *dev)
+ 
+ out:
+ 	/* reset done */
+-	mt7996_for_each_phy(dev, phy)
+-		clear_bit(MT76_RESET, &phy->mt76->state);
++	if (!ret)
++		mt7996_for_each_phy(dev, phy)
++			clear_bit(MT76_RESET, &phy->mt76->state);
+ 
+ 	napi_enable(&dev->mt76.tx_napi);
+-	local_bh_disable();
+-	napi_schedule(&dev->mt76.tx_napi);
+-	local_bh_enable();
++	if (!ret) {
++		local_bh_disable();
++		napi_schedule(&dev->mt76.tx_napi);
++		local_bh_enable();
++	}
+ 
+ 	mt76_worker_enable(&dev->mt76.tx_worker);
+ 	return ret;
+@@ -2417,7 +2425,72 @@ mt7996_mac_reset_vif_iter(void *data, u8 *mac, struct ieee80211_vif *vif)
+ 	rcu_read_unlock();
+ }
+ 
++#if IS_ENABLED(CONFIG_NF_FLOW_TABLE)
++static bool
++mt7996_wed_flow_netdev(struct wiphy *wiphy, struct net_device *netdev)
++{
++	struct net_device *lower;
++
++	for_each_netdev(wiphy_net(wiphy), lower) {
++		if (!lower->ieee80211_ptr ||
++		    lower->ieee80211_ptr->wiphy != wiphy)
++			continue;
++
++		if (lower == netdev ||
++		    netdev_has_upper_dev_all_rcu(lower, netdev))
++			return true;
++	}
++
++	return false;
++}
++#endif
++
+ static void
++mt7996_wed_flow_cleanup(struct mt7996_dev *dev)
++{
++#if IS_ENABLED(CONFIG_NF_FLOW_TABLE)
++	struct wiphy *wiphy = mt76_hw(dev)->wiphy;
++	void (*cleanup)(struct net_device *netdev);
++	struct net_device *netdev;
++	struct net *net;
++	int pass;
++
++	/* Optional: WED must also work without a loaded NF flowtable module. */
++	cleanup = symbol_get(nf_flow_table_cleanup);
++	if (!cleanup)
++		return;
++
++	rtnl_lock();
++	/*
++	 * FE recovery holds hw_lock while waiting for WLAN. Its own PPE reset
++	 * must not wait for an NF flow destroy taking that same lock.
++	 */
++	if (test_bit(MT76_STATE_WED_RESET, &dev->mphy.state))
++		goto out;
++
++	net = wiphy_net(wiphy);
++	/*
++	 * GC skips pending offload work. Drain it first, then run GC again to
++	 * destroy templates whose add completed during the first cleanup.
++	 */
++	for (pass = 0; pass < 2; pass++) {
++		for_each_netdev(net, netdev) {
++			bool match;
++
++			rcu_read_lock();
++			match = mt7996_wed_flow_netdev(wiphy, netdev);
++			rcu_read_unlock();
++			if (match)
++				cleanup(netdev);
++		}
++	}
++out:
++	rtnl_unlock();
++	symbol_put(nf_flow_table_cleanup);
++#endif
++}
++
++static bool
+ mt7996_mac_full_reset(struct mt7996_dev *dev)
+ {
+ 	struct ieee80211_hw *hw = mt76_hw(dev);
+@@ -2430,6 +2503,18 @@ mt7996_mac_full_reset(struct mt7996_dev *dev)
+ 	wake_up(&dev->mt76.mcu.wait);
+ 	ieee80211_stop_queues(hw);
+ 
++	if (mtk_wed_device_active(&dev->mt76.mmio.wed) &&
++	    mt76_wed_is_v3_1(&dev->mt76.mmio.wed) &&
++	    !test_bit(MT76_STATE_WED_RESET, &dev->mphy.state)) {
++		/* Block WINFO extraction before retiring cached templates. */
++		smp_store_release(&dev->recovery.flow_blocked, true);
++		/*
++		 * This work holds no mt76, wiphy or RTNL lock here. Invalidate
++		 * cached WINFO before reusing station WCIDs or interface BSS IDs.
++		 */
++		mt7996_wed_flow_cleanup(dev);
++	}
++
+ 	cancel_work_sync(&dev->wed_rro.work);
+ 	mt7996_for_each_phy(dev, phy)
+ 		cancel_delayed_work_sync(&phy->mt76->mac_work);
+@@ -2442,8 +2527,12 @@ mt7996_mac_full_reset(struct mt7996_dev *dev)
+ 			break;
+ 	}
+ 
+-	if (i == 10)
+-		dev_err(dev->mt76.dev, "chip full reset failed\n");
++	if (i == 10) {
++		dev_err(dev->mt76.dev, "chip full reset failed, leaving queues stopped\n");
++		dev->recovery.hw_full_reset = false;
++		mutex_unlock(&dev->mt76.mutex);
++		return false;
++	}
+ 
+ 	mt7996_for_each_phy(dev, phy)
+ 		phy->omac_mask = 0;
+@@ -2472,11 +2561,19 @@ mt7996_mac_full_reset(struct mt7996_dev *dev)
+ 
+ 	i = mt76_wcid_alloc(dev->mt76.wcid_mask, MT7996_WTBL_STA);
+ 	dev->mt76.global_wcid.idx = i;
++	/*
++	 * Old station links and VIF mappings are gone. Forward paths must now
++	 * wait for a newly connected station link, rather than an asynchronous
++	 * reconfig_complete callback that can belong to an earlier reset or be
++	 * omitted entirely when all interfaces are down.
++	 */
++	smp_store_release(&dev->recovery.flow_blocked, false);
+ 	dev->recovery.hw_full_reset = false;
+ 
+ 	mutex_unlock(&dev->mt76.mutex);
+ 
+ 	ieee80211_restart_hw(mt76_hw(dev));
++	return true;
+ }
+ 
+ void mt7996_mac_reset_work(struct work_struct *work)
+@@ -2484,7 +2581,7 @@ void mt7996_mac_reset_work(struct work_struct *work)
+ 	struct ieee80211_hw *hw;
+ 	struct mt7996_dev *dev;
+ 	struct mt7996_phy *phy;
+-	int i;
++	int i, ret = 0;
+ 
+ 	dev = container_of(work, struct mt7996_dev, reset_work);
+ 	hw = mt76_hw(dev);
+@@ -2500,7 +2597,10 @@ void mt7996_mac_reset_work(struct work_struct *work)
+ 		else
+ 			dev->recovery.wm_reset_count++;
+ 
+-		mt7996_mac_full_reset(dev);
++		if (!mt7996_mac_full_reset(dev)) {
++			dev->recovery.restart = false;
++			return;
++		}
+ 
+ 		/* enable mcu irq */
+ 		mt7996_irq_enable(dev, MT_INT_MCU_CMD);
+@@ -2563,7 +2663,9 @@ void mt7996_mac_reset_work(struct work_struct *work)
+ 	mt76_wr(dev, MT_MCU_INT_EVENT, MT_MCU_INT_EVENT_DMA_STOPPED);
+ 
+ 	if (mt7996_wait_reset_state(dev, MT_MCU_CMD_RESET_DONE)) {
+-		mt7996_dma_reset(dev, false);
++		ret = mt7996_dma_reset(dev, false);
++		if (ret)
++			goto resume_napi;
+ 
+ 		mt7996_tx_token_put(dev);
+ 		idr_init(&dev->mt76.token);
+@@ -2585,7 +2687,7 @@ void mt7996_mac_reset_work(struct work_struct *work)
+ 		u32 wed_irq_mask = MT_INT_TX_DONE_BAND2 |
+ 				   dev->mt76.mmio.irqmask;
+ 
+-		if (dev->mt76.mmio.wed.version == MTK_WED_HW_V3_1)
++		if (mt76_wed_is_v3_1(&dev->mt76.mmio.wed))
+ 			wed_irq_mask |= MT_INT_RX(MT_RXQ_WED_RX_DATA);
+ 		mt76_wr(dev, MT_INT_MASK_CSR, wed_irq_mask);
+ 		mtk_wed_device_start_hw_rro(&dev->mt76.mmio.wed, wed_irq_mask,
+@@ -2606,6 +2708,7 @@ void mt7996_mac_reset_work(struct work_struct *work)
+ 	mt7996_for_each_phy(dev, phy)
+ 		clear_bit(MT76_RESET, &phy->mt76->state);
+ 
++resume_napi:
+ 	mt76_for_each_q_rx(&dev->mt76, i) {
+ 		if (mtk_wed_device_active(&dev->mt76.mmio.wed) &&
+ 		    mt76_queue_is_wed_rro(&dev->mt76.q_rx[i]))
+@@ -2619,16 +2722,28 @@ void mt7996_mac_reset_work(struct work_struct *work)
+ 			continue;
+ 
+ 		napi_enable(&dev->mt76.napi[i]);
++		if (ret)
++			continue;
+ 		local_bh_disable();
+ 		napi_schedule(&dev->mt76.napi[i]);
+ 		local_bh_enable();
+ 	}
+ 
+-	tasklet_schedule(&dev->mt76.irq_tasklet);
++	if (!ret)
++		tasklet_schedule(&dev->mt76.irq_tasklet);
+ 
+ 	mt76_worker_enable(&dev->mt76.tx_worker);
+ 
+ 	napi_enable(&dev->mt76.tx_napi);
++	if (ret) {
++		mutex_unlock(&dev->mt76.mutex);
++		dev_err(dev->mt76.dev,
++			"WED DMA reset failed: %d, retrying full recovery\n", ret);
++		dev->recovery.restart = true;
++		queue_work(dev->mt76.wq, &dev->reset_work);
++		return;
++	}
++
+ 	local_bh_disable();
+ 	napi_schedule(&dev->mt76.tx_napi);
+ 	local_bh_enable();
+diff --git a/mt7996/main.c b/mt7996/main.c
+index 6d922d7..854d011 100644
+--- a/mt7996/main.c
++++ b/mt7996/main.c
+@@ -1155,6 +1155,7 @@ mt7996_mac_sta_init_link(struct mt7996_dev *dev,
+ 
+ 	INIT_LIST_HEAD(&msta_link->rc_list);
+ 	INIT_LIST_HEAD(&msta_link->wcid.poll_list);
++	WRITE_ONCE(msta_link->connected, false);
+ 	msta_link->sta = msta;
+ 	msta_link->wcid.sta = 1;
+ 	msta_link->wcid.idx = idx;
+@@ -1187,6 +1188,7 @@ void mt7996_mac_sta_remove_link(struct mt7996_dev *dev,
+ 	msta_link = mt76_dereference(msta->link[link_id], &dev->mt76);
+ 	if (!msta_link)
+ 		return;
++	WRITE_ONCE(msta_link->connected, false);
+ 
+ 	spin_lock_bh(&dev->mt76.sta_poll_lock);
+ 	if (!list_empty(&msta_link->wcid.poll_list))
+@@ -1385,6 +1387,8 @@ mt7996_mac_sta_event(struct mt7996_dev *dev, struct ieee80211_vif *vif,
+ 
+ 		switch (ev) {
+ 		case MT76_STA_EVENT_ASSOC:
++			msta_link->wcid.sta_disabled = 0;
++			msta_link->wcid.sta = 1;
+ 			err = mt7996_mcu_add_sta(dev, link_conf, link_sta,
+ 						 link, msta_link,
+ 						 CONN_STATE_CONNECT, true);
+@@ -1397,6 +1401,7 @@ mt7996_mac_sta_event(struct mt7996_dev *dev, struct ieee80211_vif *vif,
+ 				goto unlock;
+ 
+ 			msta_link->wcid.tx_info |= MT_WCID_TX_INFO_SET;
++			WRITE_ONCE(msta_link->connected, true);
+ 			break;
+ 		case MT76_STA_EVENT_AUTHORIZE:
+ 			err = mt7996_mcu_add_sta(dev, link_conf, link_sta,
+@@ -1406,6 +1411,7 @@ mt7996_mac_sta_event(struct mt7996_dev *dev, struct ieee80211_vif *vif,
+ 				goto unlock;
+ 			break;
+ 		case MT76_STA_EVENT_DISASSOC:
++			WRITE_ONCE(msta_link->connected, false);
+ 			for (i = 0; i < ARRAY_SIZE(msta_link->twt.flow); i++)
+ 				mt7996_mac_twt_teardown_flow(dev, link,
+ 							     msta_link, i);
+@@ -2382,13 +2388,21 @@ mt7996_net_fill_forward_path(struct ieee80211_hw *hw,
+ 	struct mtk_wed_device *wed = &dev->mt76.mmio.wed;
+ 	struct mt7996_sta_link *msta_link;
+ 	struct mt7996_vif_link *link;
++	u8 link_id;
+ 
+-	link = mt7996_vif_link(dev, vif, msta->deflink_id);
++	if (smp_load_acquire(&dev->recovery.flow_blocked))
++		return -ENODEV;
++
++	/* 稳定快照的 vif 查找不检查索引，复位移除默认链路时不能传入无效编号。 */
++	link_id = READ_ONCE(msta->deflink_id);
++	if (link_id >= IEEE80211_MLD_MAX_NUM_LINKS)
++		return -ENODEV;
++	link = mt7996_vif_link(dev, vif, link_id);
+ 	if (!link)
+ 		return -EIO;
+ 
+-	msta_link = mt7996_sta_link(msta, msta->deflink_id);
+-	if (!msta_link)
++	msta_link = mt7996_sta_link(msta, link_id);
++	if (!msta_link || (mt76_wed_is_v3_1(wed) && !READ_ONCE(msta_link->connected)))
+ 		return -EIO;
+ 
+ 	if (!msta_link->wcid.sta || msta_link->wcid.idx > MT7996_WTBL_STA)
+diff --git a/mt7996/mt7996.h b/mt7996/mt7996.h
+index bb1e20f..d1d2865 100644
+--- a/mt7996/mt7996.h
++++ b/mt7996/mt7996.h
+@@ -245,6 +245,7 @@ DECLARE_EWMA(avg_signal, 10, 8)
+ 
+ struct mt7996_sta_link {
+ 	struct mt76_wcid wcid; /* must be first */
++	bool connected;
+ 
+ 	struct mt7996_sta *sta;
+ 
+@@ -444,6 +445,7 @@ struct mt7996_dev {
+ 		u32 state;
+ 		u32 wa_reset_count;
+ 		u32 wm_reset_count;
++		bool flow_blocked;
+ 		bool hw_full_reset:1;
+ 		bool hw_init_done:1;
+ 		bool restart:1;
+@@ -693,7 +695,7 @@ int mt7996_eeprom_get_target_power(struct mt7996_dev *dev,
+ s8 mt7996_eeprom_get_power_delta(struct mt7996_dev *dev, int band);
+ bool mt7996_eeprom_has_background_radar(struct mt7996_dev *dev);
+ int mt7996_dma_init(struct mt7996_dev *dev);
+-void mt7996_dma_reset(struct mt7996_dev *dev, bool force);
++int mt7996_dma_reset(struct mt7996_dev *dev, bool force);
+ void mt7996_dma_prefetch(struct mt7996_dev *dev);
+ void mt7996_dma_cleanup(struct mt7996_dev *dev);
+ void mt7996_dma_start(struct mt7996_dev *dev, bool reset, bool wed_reset);

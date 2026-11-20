@@ -123,6 +123,11 @@ def main():
         prepare_mt76(mt76, options.openwrt_tree.resolve())
         check_register_definitions(kernel)
         check_abi(kernel, mt76)
+        recovery = [sys.executable, str(ROOT / "Tests/check-wed-recovery.py"),
+                    str(kernel), str(mt76), "--compiler", options.compiler]
+        if options.msvc:
+            recovery.append("--msvc")
+        subprocess.run(recovery, check=True, timeout=TIMEOUT)
         cleanup = [sys.executable, str(ROOT / "Tests/check-wed-cleanup.py"),
                    "--source", str(kernel / WED_DIR / "mtk_wed.c"),
                    "--compiler", options.compiler]

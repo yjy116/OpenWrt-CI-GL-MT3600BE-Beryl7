@@ -1,0 +1,213 @@
+Subject: [PATCH] mediatek: quiesce WED 3.1 RX and propagate TX pool reset errors
+
+Adapted from Shi Jiayang's OpenWrt PR #26802, commit
+4925d51e1664263777926763cc7dbe7a04df0659 (Linux GPL-2.0-only).
+仅追加到实验 950/951 之后；保留旧内核的寄存器、端口和 token 布局。
+MT7987 重建 TX 池前检查硬件空闲，失败时保留错误并停止 DMA。
+
+diff --git a/drivers/net/ethernet/mediatek/mtk_wed.c b/drivers/net/ethernet/mediatek/mtk_wed.c
+index 6144a8d..5040fb1 100644
+--- a/drivers/net/ethernet/mediatek/mtk_wed.c
++++ b/drivers/net/ethernet/mediatek/mtk_wed.c
+@@ -785,35 +785,28 @@ mtk_wed_tx_buffer_alloc(struct mtk_wed_device *dev)
+ static void
+ mtk_wed_free_tx_buffer(struct mtk_wed_device *dev)
+ {
+-	struct mtk_wed_buf *page_list = dev->tx_buf_ring.pages;
++	typeof(dev->tx_buf_ring) *ring = &dev->tx_buf_ring;
++	struct mtk_wed_buf *page_list = ring->pages;
+ 	struct mtk_wed_hw *hw = dev->hw;
+ 	int i, page_idx = 0;
+ 
+-	if (!page_list)
+-		return;
+-
+-	if (!dev->tx_buf_ring.desc)
+-		goto free_pagelist;
+-
+-	for (i = 0; i < dev->tx_buf_ring.size; i += MTK_WED_BUF_PER_PAGE) {
++	for (i = 0; page_list && i < ring->size; i += MTK_WED_BUF_PER_PAGE) {
+ 		dma_addr_t page_phy = page_list[page_idx].phy_addr;
+ 		void *page = page_list[page_idx++].p;
+ 
+ 		if (!page)
+ 			break;
+ 
+-		dma_unmap_page(dev->hw->dev, page_phy, PAGE_SIZE,
+-			       DMA_BIDIRECTIONAL);
++		dma_unmap_page(hw->dev, page_phy, PAGE_SIZE, DMA_BIDIRECTIONAL);
+ 		__free_page(page);
+ 	}
+ 
+-	dma_free_coherent(dev->hw->dev,
+-			  dev->tx_buf_ring.size * hw->soc->tx_ring_desc_size,
+-			  dev->tx_buf_ring.desc,
+-			  dev->tx_buf_ring.desc_phys);
+-
+-free_pagelist:
++	if (ring->desc)
++		dma_free_coherent(hw->dev,
++				  ring->size * hw->soc->tx_ring_desc_size,
++				  ring->desc, ring->desc_phys);
+ 	kfree(page_list);
++	memset(ring, 0, sizeof(*ring));
+ }
+ 
+ static int
+@@ -1129,6 +1122,39 @@ mtk_wed_check_wfdma_rx_fill(struct mtk_wed_device *dev,
+ 	return 0;
+ }
+ 
++static void
++mtk_wed_v3_1_rx_stop(struct mtk_wed_device *dev)
++{
++	if (!mtk_wed_get_rx_capa(dev))
++		return;
++
++	if (dev->wlan.hw_rro == MTK_WED_HWRRO_V3_1) {
++		/* Drain the descriptor driver before stopping its prefetcher. */
++		wed_clr(dev, MTK_WED_WPDMA_RRO3_1_RX_GLO_CFG,
++			MTK_WED_WPDMA_RRO3_1_RX_GLO_CFG_RX_DRV_EN);
++		if (mtk_wed_poll_busy(dev, MTK_WED_WPDMA_RRO3_1_RX_GLO_CFG,
++				      MTK_WED_WPDMA_RRO3_1_RX_GLO_CFG_RX_DRV_BUSY))
++			dev_warn(dev->hw->dev, "RRO 3.1 RX driver did not stop\n");
++
++		wed_clr(dev, MTK_WED_WPDMA_RRO3_1_RX_PREF_CFG,
++			MTK_WED_WPDMA_RRO3_1_RX_PREF_EN);
++		if (mtk_wed_poll_busy(dev, MTK_WED_WPDMA_RRO3_1_RX_PREF_CFG,
++				      MTK_WED_WPDMA_RRO3_1_RX_PREF_BUSY))
++			dev_warn(dev->hw->dev, "RRO 3.1 RX prefetch did not stop\n");
++	} else if (dev->wlan.hw_rro == MTK_WED_HWRRO_V3) {
++		wed_clr(dev, MTK_WED_CTRL, MTK_WED_CTRL_WED_RX_IND_CMD_EN);
++		if (mtk_wed_poll_busy(dev, MTK_WED_RRO_RX_HW_STS,
++				      MTK_WED_RX_IND_CMD_BUSY))
++			dev_warn(dev->hw->dev, "RRO indication driver did not stop\n");
++		wed_clr(dev, dev->hw->soc->regmap.msdu_pg_ring2_cfg,
++			MTK_WED_RRO_MSDU_PG_DRV_EN);
++	}
++
++	wed_clr(dev, MTK_WED_RRO_RX_D_CFG(2), MTK_WED_RRO_RX_D_DRV_EN);
++	/* Complete the disable write before the caller resets the endpoint. */
++	wed_r32(dev, MTK_WED_RRO_RX_D_CFG(2));
++}
++
+ static void
+ mtk_wed_dma_disable(struct mtk_wed_device *dev)
+ {
+@@ -1136,6 +1162,18 @@ mtk_wed_dma_disable(struct mtk_wed_device *dev)
+ 		MTK_WED_WPDMA_GLO_CFG_TX_DRV_EN |
+ 		MTK_WED_WPDMA_GLO_CFG_RX_DRV_EN);
+ 
++	if (mtk_wed_is_v3_1(dev->hw)) {
++		wed_clr(dev, MTK_WED_CTRL, MTK_WED_CTRL_WPDMA_INT_AGENT_EN);
++		if (mtk_wed_poll_busy(dev, MTK_WED_WPDMA_GLO_CFG,
++				      MTK_WED_WPDMA_GLO_CFG_TX_DRV_BUSY |
++				      MTK_WED_WPDMA_GLO_CFG_RX_DRV_BUSY))
++			dev_warn(dev->hw->dev, "WPDMA drivers did not stop\n");
++		if (mtk_wed_poll_busy(dev, MTK_WED_CTRL,
++				      MTK_WED_CTRL_WPDMA_INT_AGENT_BUSY))
++			dev_warn(dev->hw->dev, "WPDMA interrupt agent did not stop\n");
++		mtk_wed_v3_1_rx_stop(dev);
++	}
++
+ 	wed_clr(dev, MTK_WED_WDMA_GLO_CFG, MTK_WED_WDMA_GLO_CFG_RX_DRV_EN);
+ 
+ 	wed_clr(dev, MTK_WED_GLO_CFG,
+@@ -2150,12 +2188,12 @@ mtk_wed_v3_1_wdma_enable(struct mtk_wed_device *dev, bool enable)
+ 		MTK_FE_GLO_CFG(MTK_GMAC3_ID));
+ }
+ 
+-static void
++static int
+ mtk_wed_reset_dma(struct mtk_wed_device *dev)
+ {
+ 	bool busy = false;
+ 	u32 val;
+-	int i;
++	int i, ret;
+ 
+ 	mtk_wed_v3_1_wdma_enable(dev, false);
+ 
+@@ -2187,6 +2225,8 @@ mtk_wed_reset_dma(struct mtk_wed_device *dev)
+ 
+ 	/* 3. reset WED TX BM */
+ 	wed_clr(dev, MTK_WED_CTRL, MTK_WED_CTRL_WED_TX_FREE_AGENT_EN);
++	if (mtk_wed_is_v3_1(dev->hw))
++		mtk_wed_poll_busy(dev, MTK_WED_CTRL, MTK_WED_CTRL_WED_TX_FREE_AGENT_BUSY);
+ 
+ 	for (i = 0; i < 100; i++) {
+ 		if (mtk_wed_is_v1(dev->hw))
+@@ -2195,20 +2235,29 @@ mtk_wed_reset_dma(struct mtk_wed_device *dev)
+ 		else
+ 			val = FIELD_GET(MTK_WED_TX_TKID_INTF_TKFIFO_FDEP,
+ 					wed_r32(dev, MTK_WED_TX_TKID_INTF));
+-		if (val == 0x40)
++		if (val == (mtk_wed_is_v3_1(dev->hw) ? 0x200 : 0x40))
+ 			break;
+ 	}
+ 
+ 	mtk_wed_reset(dev, MTK_WED_RESET_TX_FREE_AGENT);
+ 	wed_clr(dev, MTK_WED_CTRL, MTK_WED_CTRL_WED_TX_BM_EN);
+ 	mtk_wed_reset(dev, MTK_WED_RESET_TX_BM);
++	if (mtk_wed_is_v3_1(dev->hw)) {
++		ret = mtk_wed_poll_busy(dev, MTK_WED_CTRL, MTK_WED_CTRL_WED_TX_BM_BUSY);
++		if (ret) {
++			/* 硬件仍占用缓冲池，不能释放其 DMA 内存。 */
++			mtk_wed_stop(dev);
++			dev_err(dev->hw->dev, "WED TX buffer manager still busy: %d\n", ret);
++			return ret;
++		}
++	}
+ 
+ 	/* 4. reset WED WPDMA tx */
+ 	mtk_wed_wpdma_tx_reset(dev);
+ 
+ 	dev->init_done = false;
+ 	if (mtk_wed_is_v1(dev->hw))
+-		return;
++		return 0;
+ 
+ 	if (!busy && !mtk_wed_is_v3_1(dev->hw)) {
+ 		wed_w32(dev, MTK_WED_RESET_IDX, MTK_WED_RESET_WPDMA_IDX_RX);
+@@ -2229,6 +2278,18 @@ mtk_wed_reset_dma(struct mtk_wed_device *dev)
+ 
+ 	if (mtk_wed_get_rx_capa(dev))
+ 		mtk_wed_rx_reset(dev);
++
++	if (mtk_wed_is_v3_1(dev->hw)) {
++		mtk_wed_free_tx_buffer(dev);
++		ret = mtk_wed_tx_buffer_alloc(dev);
++		if (ret) {
++			mtk_wed_free_tx_buffer(dev);
++			mtk_wed_stop(dev);
++			dev_err(dev->hw->dev, "WED TX buffer reset failed: %d\n", ret);
++			return ret;
++		}
++	}
++	return 0;
+ }
+ 
+ static int
+@@ -2793,6 +2854,9 @@ mtk_wed_start(struct mtk_wed_device *dev, u32 irq_mask)
+ {
+ 	int i, ret;
+ 
++	if (!dev->tx_buf_ring.desc)
++		return;
++
+ 	if (mtk_wed_get_rx_capa(dev)) {
+ 		ret = mtk_wed_rx_buffer_alloc(dev);
+ 		if (ret) {
+diff --git a/include/linux/soc/mediatek/mtk_wed.h b/include/linux/soc/mediatek/mtk_wed.h
+index d39c09a..a88d43a 100644
+--- a/include/linux/soc/mediatek/mtk_wed.h
++++ b/include/linux/soc/mediatek/mtk_wed.h
+@@ -229,7 +229,7 @@ struct mtk_wed_ops {
+ 
+ 	void (*stop)(struct mtk_wed_device *dev);
+ 	void (*start)(struct mtk_wed_device *dev, u32 irq_mask);
+-	void (*reset_dma)(struct mtk_wed_device *dev);
++	int (*reset_dma)(struct mtk_wed_device *dev);
+ 
+ 	u32 (*reg_read)(struct mtk_wed_device *dev, u32 reg);
+ 	void (*reg_write)(struct mtk_wed_device *dev, u32 reg, u32 val);
